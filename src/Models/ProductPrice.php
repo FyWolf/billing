@@ -1,0 +1,131 @@
+<?php
+
+namespace Boy132\Billing\Models;
+
+use Boy132\Billing\Enums\PriceInterval;
+use Filament\Support\Contracts\HasLabel;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use NumberFormatter;
+use Stripe\StripeClient;
+
+/**
+ * @property int $id
+ * @property ?string $stripe_id
+ * @property string $name
+ * @property float $cost
+ * @property bool $renewable
+ * @property int $trial_days
+ * @property PriceInterval $interval_type
+ * @property int $interval_value
+ * @property int $product_id
+ * @property Product $product
+ */
+class ProductPrice extends Model implements HasLabel
+{
+    protected $fillable = [
+        'stripe_id',
+        'product_id',
+        'name',
+        'cost',
+        'renewable',
+        'trial_days',
+        'interval_type',
+        'interval_value',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'renewable'     => 'bool',
+            'interval_type' => PriceInterval::class,
+        ];
+    }
+
+    protected static function boot(): void
+    {
+        parent::boot();
+
+        static::created(function (self $model) {
+            $model->sync();
+        });
+
+        static::updated(function (self $model) {
+            $model->sync();
+        });
+    }
+
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class, 'product_id');
+    }
+
+    public function getLabel(): string
+    {
+        return $this->interval_value . ' ' . str_plural($this->interval_type->getLabel(), $this->interval_value) . ' - ' . $this->formatCost();
+    }
+
+    public function sync(): void
+    {
+        if (!$this->isStripeEnabled()) {
+            return;
+        }
+
+        $this->product->sync();
+
+        /** @var StripeClient $stripeClient */
+        $stripeClient = app(StripeClient::class);
+
+        try {
+            if (is_null($this->stripe_id)) {
+                $stripePrice = $stripeClient->prices->create([
+                    'currency'    => config('billing.currency'),
+                    'nickname'    => $this->name,
+                    'product'     => $this->product->stripe_id,
+                    'unit_amount' => (int) round($this->cost * 100),
+                ]);
+
+                $this->updateQuietly(['stripe_id' => $stripePrice->id]);
+            } else {
+                $stripePrice = $stripeClient->prices->retrieve($this->stripe_id);
+
+                // Stripe prices are immutable — recreate if amount or product changed
+                if ($stripePrice->product !== $this->product->stripe_id
+                    || $stripePrice->unit_amount !== (int) round($this->cost * 100)) {
+                    $this->updateQuietly(['stripe_id' => null]);
+                    $this->sync();
+                }
+            }
+        } catch (\Exception $e) {
+            report($e);
+        }
+    }
+
+    public function isFree(): bool
+    {
+        return !$this->cost;
+    }
+
+    public function hasTrial(): bool
+    {
+        return $this->trial_days > 0;
+    }
+
+    public function formatCost(): string
+    {
+        if ($this->isFree()) {
+            return 'Free';
+        }
+
+        $locale = auth()->user()?->language ?? 'en';
+        $formatter = new NumberFormatter($locale, NumberFormatter::CURRENCY);
+
+        return $formatter->formatCurrency($this->cost, config('billing.currency'));
+    }
+
+    private static function isStripeEnabled(): bool
+    {
+        return config('billing.active_gateway', 'stripe') === 'stripe'
+            && !empty(config('billing.stripe.secret'));
+    }
+}

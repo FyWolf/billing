@@ -1,0 +1,17 @@
+{
+    "id": "billing",
+    "name": "Billing",
+    "author": "Boy132",
+    "version": "1.0.1",
+    "description": "Production-ready billing plugin for game hosting. Supports Stripe and PayPal, grace periods, audit logging, and automated server provisioning.",
+    "category": "plugin",
+    "url": "https://github.com/pelican-dev/plugins/tree/main/billing",
+    "update_url": null,
+    "namespace": "Boy132\\Billing",
+    "class": "BillingPlugin",
+    "panels": null,
+    "panel_version": null,
+    "composer_packages": {
+        "stripe/stripe-php": "^18.0"
+    }
+}
