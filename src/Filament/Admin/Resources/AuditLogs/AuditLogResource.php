@@ -64,10 +64,11 @@ class AuditLogResource extends Resource
                     ->placeholder('—'),
                 TextColumn::make('metadata')
                     ->label('Details')
-                    ->formatStateUsing(function ($state) {
-                        if (!$state) return '—';
+                    ->formatStateUsing(function ($state, AuditLog $record) {
+                        $metadata = $record->metadata;
+                        if (!$metadata || !is_array($metadata)) return '—';
                         $parts = [];
-                        foreach ($state as $k => $v) {
+                        foreach ($metadata as $k => $v) {
                             if (is_scalar($v)) {
                                 $parts[] = "{$k}: {$v}";
                             }

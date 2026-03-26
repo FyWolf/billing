@@ -16,6 +16,8 @@ return new class extends Migration
             $table->unsignedInteger('user_id');
             $table->foreign('user_id')->references('id')->on('users')->cascadeOnDelete();
             $table->timestamps();
+
+            $table->index('user_id', 'customers_user_id_idx');
         });
     }
 

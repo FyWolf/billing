@@ -23,6 +23,7 @@ use Stripe\StripeClient;
  * @property int $io_weight
  * @property array<int|string> $ports
  * @property string[] $tags
+ * @property int[]|null $node_ids
  * @property int $allocation_limit
  * @property int $database_limit
  * @property int $backup_limit
@@ -46,6 +47,7 @@ class Product extends Model implements HasLabel
         'io_weight',
         'ports',
         'tags',
+        'node_ids',
         'allocation_limit',
         'database_limit',
         'backup_limit',
@@ -60,8 +62,9 @@ class Product extends Model implements HasLabel
     protected function casts(): array
     {
         return [
-            'ports' => 'array',
-            'tags'  => 'array',
+            'ports'    => 'array',
+            'tags'     => 'array',
+            'node_ids' => 'array',
         ];
     }
 

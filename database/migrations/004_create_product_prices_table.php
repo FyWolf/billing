@@ -17,6 +17,8 @@ return new class extends Migration
             $table->boolean('renewable')->default(true);
             $table->string('interval_type')->default(PriceInterval::Month);
             $table->unsignedInteger('interval_value')->default(1);
+            $table->unsignedInteger('trial_days')->default(0);
+            $table->json('environment_overrides')->nullable();
 
             $table->unsignedInteger('product_id');
             $table->foreign('product_id')->references('id')->on('products')->cascadeOnDelete();

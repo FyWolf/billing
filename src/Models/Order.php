@@ -3,8 +3,11 @@
 namespace Boy132\Billing\Models;
 
 use App\Enums\SuspendAction;
+use App\Models\Allocation;
+use App\Models\EggVariable;
 use App\Models\Objects\DeploymentObject;
 use App\Models\Server;
+use App\Models\ServerVariable;
 use App\Services\Servers\ServerCreationService;
 use App\Services\Servers\SuspensionService;
 use Boy132\Billing\Enums\OrderStatus;
@@ -341,6 +344,67 @@ class Order extends Model implements HasLabel
     }
 
     // -------------------------------------------------------------------------
+    // Plan changes (upgrade / downgrade)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Switch this order to a different price tier and update the server's
+     * startup variables to match the new price's environment overrides.
+     */
+    public function changePlan(ProductPrice $newPrice): void
+    {
+        $oldPrice = $this->productPrice;
+
+        $this->update(['product_price_id' => $newPrice->id]);
+        $this->load('productPrice');
+
+        // Update the server's startup variables if it exists
+        if ($this->server) {
+            $this->applyEnvironmentOverrides($this->server, $newPrice);
+        }
+
+        $direction = $newPrice->cost > $oldPrice->cost ? 'upgrade' : 'downgrade';
+
+        AuditLog::record("order_plan_{$direction}", [
+            'old_price_id'   => $oldPrice->id,
+            'old_price_name' => $oldPrice->name,
+            'new_price_id'   => $newPrice->id,
+            'new_price_name' => $newPrice->name,
+        ], $this);
+    }
+
+    /**
+     * Apply a price tier's environment overrides to an existing server.
+     * Resets all overridable variables to egg defaults first, then applies
+     * the new price's overrides so that downgrades properly remove old values.
+     */
+    private function applyEnvironmentOverrides(Server $server, ProductPrice $price): void
+    {
+        $product = $price->product;
+        $eggVariables = EggVariable::where('egg_id', $product->egg_id)->get();
+
+        // Build a map of env_variable => override value from the new price
+        $overrides = [];
+        if (!empty($price->environment_overrides)) {
+            foreach ($price->environment_overrides as $override) {
+                if (isset($override['variable'], $override['value'])) {
+                    $overrides[$override['variable']] = $override['value'];
+                }
+            }
+        }
+
+        // Update each egg variable: use the override if set, otherwise reset to default
+        foreach ($eggVariables as $eggVariable) {
+            $value = $overrides[$eggVariable->env_variable] ?? $eggVariable->default_value;
+
+            ServerVariable::updateOrCreate(
+                ['server_id' => $server->id, 'variable_id' => $eggVariable->id],
+                ['variable_value' => $value]
+            );
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Server provisioning (called directly by admin actions too)
     // -------------------------------------------------------------------------
 
@@ -355,6 +419,15 @@ class Order extends Model implements HasLabel
         $environment = [];
         foreach ($product->egg->variables as $variable) {
             $environment[$variable->env_variable] = $variable->default_value;
+        }
+
+        // Apply per-price variable overrides (e.g. locked player count)
+        if (!empty($this->productPrice->environment_overrides)) {
+            foreach ($this->productPrice->environment_overrides as $override) {
+                if (isset($override['variable'], $override['value'])) {
+                    $environment[$override['variable']] = $override['value'];
+                }
+            }
         }
 
         $data = [
@@ -375,12 +448,49 @@ class Order extends Model implements HasLabel
             'backup_limit'     => $product->backup_limit,
         ];
 
-        $object = new DeploymentObject();
-        $object->setDedicated(false);
-        $object->setTags($product->tags);
-        $object->setPorts($product->ports);
+        if (!empty($product->node_ids)) {
+            // Specific nodes configured — find a matching allocation manually
+            $allocationQuery = Allocation::query()
+                ->whereIn('node_id', $product->node_ids)
+                ->whereNull('server_id');
 
-        $server = app(ServerCreationService::class)->handle($data, $object);
+            // Filter by required ports if specified
+            if (!empty($product->ports)) {
+                $ports = [];
+                foreach ($product->ports as $portRange) {
+                    if (str_contains((string) $portRange, '-')) {
+                        [$start, $end] = explode('-', $portRange, 2);
+                        $ports = array_merge($ports, range((int) $start, (int) $end));
+                    } else {
+                        $ports[] = (int) $portRange;
+                    }
+                }
+                $allocationQuery->whereIn('port', $ports);
+            }
+
+            $allocation = $allocationQuery->inRandomOrder()->first();
+
+            if (!$allocation) {
+                throw new \RuntimeException(
+                    'No available allocations on the configured nodes'
+                    . (!empty($product->ports) ? ' matching ports: ' . implode(', ', $product->ports) : '')
+                    . '.'
+                );
+            }
+
+            $data['node_id'] = $allocation->node_id;
+            $data['allocation_id'] = $allocation->id;
+
+            $server = app(ServerCreationService::class)->handle($data);
+        } else {
+            // No specific nodes — use auto-deployment via tags
+            $object = new DeploymentObject();
+            $object->setDedicated(false);
+            $object->setTags($product->tags);
+            $object->setPorts($product->ports);
+
+            $server = app(ServerCreationService::class)->handle($data, $object);
+        }
 
         $this->update(['server_id' => $server->id]);
 

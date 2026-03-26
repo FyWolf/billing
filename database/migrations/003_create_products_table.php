@@ -17,8 +17,10 @@ return new class extends Migration
             $table->unsignedInteger('memory')->default(0);
             $table->unsignedInteger('disk')->default(0);
             $table->unsignedInteger('swap')->default(0);
+            $table->unsignedInteger('io_weight')->default(500);
             $table->json('ports');
             $table->json('tags');
+            $table->json('node_ids')->nullable();
             $table->unsignedInteger('allocation_limit')->default(0);
             $table->unsignedInteger('database_limit')->default(0);
             $table->unsignedInteger('backup_limit')->default(0);
@@ -27,6 +29,7 @@ return new class extends Migration
             $table->foreign('egg_id')->references('id')->on('eggs')->cascadeOnDelete();
 
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

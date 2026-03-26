@@ -8,8 +8,11 @@ use Boy132\Billing\Enums\OrderStatus;
 use Boy132\Billing\Filament\App\Resources\Orders\Pages\ListOrders;
 use Boy132\Billing\Models\Customer;
 use Boy132\Billing\Models\Order;
+use Boy132\Billing\Models\ProductPrice;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\Select;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -77,6 +80,41 @@ class OrdersResource extends Resource
                 ViewAction::make()
                     ->hidden(fn (Order $order) => !$order->server)
                     ->url(fn (Order $order) => Console::getUrl(panel: 'server', tenant: $order->server)),
+                Action::make('change_plan')
+                    ->label('Change Plan')
+                    ->icon('tabler-arrows-exchange')
+                    ->visible(fn (Order $order) => $order->status === OrderStatus::Active && $order->server)
+                    ->color('info')
+                    ->form(fn (Order $order) => [
+                        Select::make('new_price_id')
+                            ->label('New Plan')
+                            ->options(function () use ($order) {
+                                $currentPrice = $order->productPrice;
+
+                                return ProductPrice::where('product_id', $currentPrice->product_id)
+                                    ->where('id', '!=', $currentPrice->id)
+                                    ->get()
+                                    ->mapWithKeys(fn (ProductPrice $price) => [
+                                        $price->id => $price->name . ' — ' . $price->formatCost() . ($price->cost > $currentPrice->cost ? ' (upgrade)' : ' (downgrade)'),
+                                    ]);
+                            })
+                            ->required()
+                            ->searchable(),
+                    ])
+                    ->requiresConfirmation()
+                    ->modalHeading('Change Plan')
+                    ->modalDescription('Your server\'s startup variables will be updated immediately. The new price takes effect on your next renewal.')
+                    ->action(function (Order $order, array $data) {
+                        $newPrice = ProductPrice::findOrFail($data['new_price_id']);
+
+                        $order->changePlan($newPrice);
+
+                        Notification::make()
+                            ->title('Plan changed')
+                            ->body("Switched to {$newPrice->name}. Server variables have been updated.")
+                            ->success()
+                            ->send();
+                    }),
                 Action::make('activate')
                     ->visible(fn (Order $order) => $order->status === OrderStatus::Pending)
                     ->color('success')

@@ -19,6 +19,7 @@ return new class extends Migration
             $table->integer('max_redemptions')->nullable();
             $table->dateTime('redeem_by')->nullable();
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

@@ -9,6 +9,7 @@ use Boy132\Billing\Models\Order;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Stripe\Event;
+use Stripe\StripeClient;
 
 /**
  * Handles verified Stripe webhook events.
@@ -63,14 +64,24 @@ class StripeWebhookController extends Controller
 
     private function handlePaymentFailed(object $paymentIntent): void
     {
-        // Find orders that were waiting for this payment intent
-        $order = Order::where('stripe_checkout_id', function ($query) use ($paymentIntent) {
-            // Match via payment_intent in session metadata (stored when session was created)
-            $query->selectRaw('stripe_checkout_id')
-                ->from('orders')
-                ->whereRaw("JSON_EXTRACT(metadata, '$.payment_intent') = ?", [$paymentIntent->id])
-                ->limit(1);
-        })->first();
+        $order = null;
+
+        try {
+            /** @var StripeClient $stripeClient */
+            $stripeClient = app(StripeClient::class);
+
+            // Find the checkout session that created this payment intent
+            $sessions = $stripeClient->checkout->sessions->all([
+                'payment_intent' => $paymentIntent->id,
+                'limit' => 1,
+            ]);
+
+            if (!empty($sessions->data)) {
+                $order = Order::where('stripe_checkout_id', $sessions->data[0]->id)->first();
+            }
+        } catch (\Exception $e) {
+            report($e);
+        }
 
         AuditLog::record('stripe_payment_failed', [
             'payment_intent_id'    => $paymentIntent->id,

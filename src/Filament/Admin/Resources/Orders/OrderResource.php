@@ -12,6 +12,7 @@ use Boy132\Billing\Filament\Admin\Resources\Products\Pages\EditProduct;
 use Boy132\Billing\Models\AuditLog;
 use Boy132\Billing\Models\Customer;
 use Boy132\Billing\Models\Order;
+use Boy132\Billing\Models\Product;
 use Boy132\Billing\Models\ProductPrice;
 use Exception;
 use Filament\Actions\Action;
@@ -107,6 +108,49 @@ class OrderResource extends Resource
                     ->since(),
             ])
             ->recordActions([
+                Action::make('change_plan')
+                    ->label('Change Plan')
+                    ->icon('tabler-arrows-exchange')
+                    ->visible(fn (Order $order) => $order->status === OrderStatus::Active)
+                    ->color('info')
+                    ->form(fn (Order $order) => [
+                        Select::make('new_price_id')
+                            ->label('New Plan')
+                            ->options(function () use ($order) {
+                                $currentPrice = $order->productPrice;
+
+                                // Show all prices from the same product, excluding the current one
+                                return ProductPrice::where('product_id', $currentPrice->product_id)
+                                    ->where('id', '!=', $currentPrice->id)
+                                    ->get()
+                                    ->mapWithKeys(fn (ProductPrice $price) => [
+                                        $price->id => $price->name . ' — ' . $price->formatCost()
+                                            . ($price->cost > $currentPrice->cost ? ' (upgrade)' : ' (downgrade)'),
+                                    ]);
+                            })
+                            ->required()
+                            ->searchable(),
+                    ])
+                    ->requiresConfirmation()
+                    ->modalHeading('Change Plan')
+                    ->modalDescription('The server\'s startup variables will be updated immediately.')
+                    ->action(function (Order $order, array $data) {
+                        $newPrice = ProductPrice::findOrFail($data['new_price_id']);
+
+                        $order->changePlan($newPrice);
+
+                        AuditLog::record('admin_order_plan_changed', [
+                            'admin_id'       => auth()->id(),
+                            'new_price_id'   => $newPrice->id,
+                            'new_price_name' => $newPrice->name,
+                        ], $order);
+
+                        Notification::make()
+                            ->title('Plan changed')
+                            ->body("Switched {$order->getLabel()} to {$newPrice->name}")
+                            ->success()
+                            ->send();
+                    }),
                 Action::make('activate')
                     ->visible(fn (Order $order) => $order->status !== OrderStatus::Active)
                     ->color('success')

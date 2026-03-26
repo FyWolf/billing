@@ -13,8 +13,13 @@ return new class extends Migration
             $table->increments('id');
             $table->string('stripe_checkout_id')->nullable();
             $table->string('stripe_payment_id')->nullable();
+            $table->string('payment_gateway')->nullable();
+            $table->string('paypal_order_id')->nullable();
+            $table->string('paypal_capture_id')->nullable();
+            $table->boolean('is_trial')->default(false);
             $table->string('status')->default(OrderStatus::Pending);
             $table->timestamp('expires_at')->nullable();
+            $table->timestamp('grace_notified_at')->nullable();
 
             $table->unsignedInteger('customer_id');
             $table->foreign('customer_id')->references('id')->on('customers')->cascadeOnDelete();
@@ -26,6 +31,9 @@ return new class extends Migration
             $table->foreign('server_id')->references('id')->on('servers')->nullOnDelete();
 
             $table->timestamps();
+
+            $table->index(['status', 'expires_at'], 'orders_status_expires_idx');
+            $table->index('paypal_order_id', 'orders_paypal_order_id_idx');
         });
     }
 

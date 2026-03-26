@@ -18,6 +18,7 @@ use Stripe\StripeClient;
  * @property int $trial_days
  * @property PriceInterval $interval_type
  * @property int $interval_value
+ * @property array|null $environment_overrides
  * @property int $product_id
  * @property Product $product
  */
@@ -32,13 +33,15 @@ class ProductPrice extends Model implements HasLabel
         'trial_days',
         'interval_type',
         'interval_value',
+        'environment_overrides',
     ];
 
     protected function casts(): array
     {
         return [
-            'renewable'     => 'bool',
-            'interval_type' => PriceInterval::class,
+            'renewable'              => 'bool',
+            'interval_type'          => PriceInterval::class,
+            'environment_overrides'  => 'array',
         ];
     }
 

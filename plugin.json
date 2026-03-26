@@ -2,7 +2,7 @@
     "id": "billing",
     "name": "Billing",
     "author": "Boy132",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "description": "Production-ready billing plugin for game hosting. Supports Stripe and PayPal, grace periods, audit logging, and automated server provisioning.",
     "category": "plugin",
     "url": "https://github.com/pelican-dev/plugins/tree/main/billing",

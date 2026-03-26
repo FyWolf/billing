@@ -2,6 +2,7 @@
 
 namespace Boy132\Billing\Filament\Admin\Resources\Products;
 
+use App\Models\Node;
 use Boy132\Billing\Filament\Admin\Resources\Products\Pages\CreateProduct;
 use Boy132\Billing\Filament\Admin\Resources\Products\Pages\EditProduct;
 use Boy132\Billing\Filament\Admin\Resources\Products\Pages\ListProducts;
@@ -95,9 +96,19 @@ class ProductResource extends Resource
                     ->columnSpanFull()
                     ->columns(2)
                     ->schema([
-                        TagsInput::make('ports'),
+                        Select::make('node_ids')
+                            ->label('Nodes')
+                            ->multiple()
+                            ->options(fn () => Node::query()->pluck('name', 'id'))
+                            ->searchable()
+                            ->preload()
+                            ->columnSpanFull()
+                            ->helperText('Select which nodes this product can deploy to. If empty, auto-deployment via tags is used instead.'),
+                        TagsInput::make('ports')
+                            ->helperText('Port(s) the server needs (e.g. 25565). Used to find a matching allocation on the selected node(s).'),
                         TagsInput::make('tags')
-                            ->default(array_filter(explode(',', config('billing.deployment_tags', '')))),
+                            ->default(array_filter(explode(',', config('billing.deployment_tags', ''))))
+                            ->helperText('Only used when no specific nodes are selected. Must match tags on your nodes.'),
                     ]),
                 Fieldset::make('Limits')
                     ->columnSpanFull()
