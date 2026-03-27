@@ -6,10 +6,8 @@ use App\Contracts\Plugins\HasPluginSettings;
 use App\Enums\CustomizationKey;
 use App\Filament\App\Resources\Servers\ServerResource;
 use App\Filament\Pages\Auth\EditProfile;
-use App\Livewire\AlertBanner;
 use App\Traits\EnvironmentWriterTrait;
 use Filament\Contracts\Plugin;
-use Filament\Facades\Filament;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TagsInput;
@@ -18,8 +16,7 @@ use Filament\Navigation\NavigationItem;
 use Filament\Notifications\Notification;
 use Filament\Panel;
 use Filament\Schemas\Components\Fieldset;
-use Fywolf\Billing\Enums\OrderStatus;
-use Fywolf\Billing\Models\Order;
+use Fywolf\Billing\Http\Middleware\CancellationWarningMiddleware;
 
 class BillingPlugin implements HasPluginSettings, Plugin
 {
@@ -55,35 +52,16 @@ class BillingPlugin implements HasPluginSettings, Plugin
             $panel->clearCachedComponents();
         }
 
+        if ($panel->getId() === 'server') {
+            $panel->middleware([CancellationWarningMiddleware::class]);
+        }
+
         $panel->discoverResources(plugin_path($this->getId(), "src/Filament/$id/Resources"), "Fywolf\\Billing\\Filament\\$id\\Resources");
         $panel->discoverPages(plugin_path($this->getId(), "src/Filament/$id/Pages"), "Fywolf\\Billing\\Filament\\$id\\Pages");
         $panel->discoverWidgets(plugin_path($this->getId(), "src/Filament/$id/Widgets"), "Fywolf\\Billing\\Filament\\$id\\Widgets");
     }
 
-    public function boot(Panel $panel): void
-    {
-        if ($panel->getId() !== 'server' || !auth()->check()) {
-            return;
-        }
-
-        $server = Filament::getTenant();
-
-        if (!$server) {
-            return;
-        }
-
-        $order = Order::where('server_id', $server->id)
-            ->where('status', OrderStatus::Cancelled)
-            ->first();
-
-        if ($order && $order->expires_at) {
-            AlertBanner::make('cancellation_warning_' . $order->id)
-                ->title('This server is scheduled for suspension')
-                ->body('Your subscription has been cancelled. This server will be suspended on ' . $order->expires_at->format('M j, Y') . '.')
-                ->status('warning')
-                ->send();
-        }
-    }
+    public function boot(Panel $panel): void {}
 
     public function getSettingsForm(): array
     {

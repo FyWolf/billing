@@ -286,6 +286,83 @@ class Order extends Model implements HasLabel
         ], $this);
     }
 
+    /**
+     * Refund the order via Stripe and close it.
+     *
+     * @param int|null $amountInCents  Partial refund amount in cents, or null for a full refund.
+     * @return string The Stripe Refund ID.
+     */
+    public function refund(?int $amountInCents = null): string
+    {
+        /** @var StripeClient $stripeClient */
+        $stripeClient = app(StripeClient::class);
+
+        // Resolve the payment intent to refund
+        $paymentIntentId = $this->resolvePaymentIntentId($stripeClient);
+
+        $refundData = ['payment_intent' => $paymentIntentId];
+
+        if ($amountInCents !== null) {
+            $refundData['amount'] = $amountInCents;
+        }
+
+        $refund = $stripeClient->refunds->create($refundData);
+
+        // Immediately cancel subscription and close the order
+        if ($this->stripe_subscription_id) {
+            try {
+                $stripeClient->subscriptions->cancel($this->stripe_subscription_id);
+            } catch (Exception $e) {
+                report($e);
+            }
+        }
+
+        $this->close();
+
+        AuditLog::record('order_refunded', [
+            'stripe_refund_id' => $refund->id,
+            'amount'           => $refund->amount,
+            'currency'         => $refund->currency,
+            'full_refund'      => $amountInCents === null,
+        ], $this);
+
+        return $refund->id;
+    }
+
+    /**
+     * Find the Stripe PaymentIntent ID for this order.
+     */
+    private function resolvePaymentIntentId(StripeClient $stripeClient): string
+    {
+        // 1. Stored payment ID
+        if ($this->stripe_payment_id) {
+            return $this->stripe_payment_id;
+        }
+
+        // 2. Subscription → latest invoice → payment intent
+        if ($this->stripe_subscription_id) {
+            $subscription = $stripeClient->subscriptions->retrieve(
+                $this->stripe_subscription_id,
+                ['expand' => ['latest_invoice']],
+            );
+
+            if ($subscription->latest_invoice?->payment_intent) {
+                return $subscription->latest_invoice->payment_intent;
+            }
+        }
+
+        // 3. Checkout session → payment intent
+        if ($this->stripe_checkout_id) {
+            $session = $stripeClient->checkout->sessions->retrieve($this->stripe_checkout_id);
+
+            if ($session->payment_intent) {
+                return $session->payment_intent;
+            }
+        }
+
+        throw new Exception("No payment intent found for Order #{$this->id}");
+    }
+
     // -------------------------------------------------------------------------
     // Order lifecycle
     // -------------------------------------------------------------------------

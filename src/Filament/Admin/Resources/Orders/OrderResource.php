@@ -17,6 +17,7 @@ use Fywolf\Billing\Models\ProductPrice;
 use Exception;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -224,6 +225,46 @@ class OrderResource extends Resource
                                 : $order->getLabel())
                             ->success()
                             ->send();
+                    }),
+                Action::make('refund')
+                    ->label('Refund')
+                    ->icon('tabler-receipt-refund')
+                    ->visible(fn (Order $order) => in_array($order->status, [OrderStatus::Active, OrderStatus::Cancelled, OrderStatus::GracePeriod])
+                        && ($order->stripe_payment_id || $order->stripe_subscription_id || $order->stripe_checkout_id))
+                    ->color('warning')
+                    ->form(fn (Order $order) => [
+                        TextInput::make('amount')
+                            ->label('Refund Amount (' . strtoupper(config('billing.currency', 'USD')) . ')')
+                            ->numeric()
+                            ->minValue(0.01)
+                            ->maxValue($order->productPrice->cost)
+                            ->placeholder($order->productPrice->formatCost() . ' (full refund)')
+                            ->helperText('Leave empty for a full refund.'),
+                    ])
+                    ->requiresConfirmation()
+                    ->modalHeading('Refund Order')
+                    ->modalDescription(fn (Order $order) => 'This will refund the payment via Stripe, cancel any active subscription, and close the order. The server will be suspended.')
+                    ->action(function (Order $order, array $data) {
+                        try {
+                            $amountInCents = !empty($data['amount'])
+                                ? (int) round((float) $data['amount'] * 100)
+                                : null;
+
+                            $refundId = $order->refund($amountInCents);
+
+                            Notification::make()
+                                ->title('Order refunded')
+                                ->body($order->getLabel() . " — Stripe refund: {$refundId}")
+                                ->success()
+                                ->send();
+                        } catch (Exception $exception) {
+                            Notification::make()
+                                ->title('Refund failed')
+                                ->body($exception->getMessage())
+                                ->danger()
+                                ->persistent()
+                                ->send();
+                        }
                     }),
             ])
             ->emptyStateHeading('No Orders')
