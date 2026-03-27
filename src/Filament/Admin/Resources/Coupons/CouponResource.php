@@ -1,13 +1,13 @@
 <?php
 
-namespace Boy132\Billing\Filament\Admin\Resources\Coupons;
+namespace Fywolf\Billing\Filament\Admin\Resources\Coupons;
 
 use App\Filament\Components\Tables\Columns\DateTimeColumn;
-use Boy132\Billing\Enums\CouponType;
-use Boy132\Billing\Filament\Admin\Resources\Coupons\Pages\CreateCoupon;
-use Boy132\Billing\Filament\Admin\Resources\Coupons\Pages\EditCoupon;
-use Boy132\Billing\Filament\Admin\Resources\Coupons\Pages\ListCoupons;
-use Boy132\Billing\Models\Coupon;
+use Fywolf\Billing\Enums\CouponType;
+use Fywolf\Billing\Filament\Admin\Resources\Coupons\Pages\CreateCoupon;
+use Fywolf\Billing\Filament\Admin\Resources\Coupons\Pages\EditCoupon;
+use Fywolf\Billing\Filament\Admin\Resources\Coupons\Pages\ListCoupons;
+use Fywolf\Billing\Models\Coupon;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;

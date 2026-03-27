@@ -1,6 +1,6 @@
 <?php
 
-namespace Boy132\Billing\Enums;
+namespace Fywolf\Billing\Enums;
 
 use Filament\Support\Contracts\HasColor;
 use Filament\Support\Contracts\HasIcon;
@@ -9,7 +9,6 @@ use Filament\Support\Contracts\HasLabel;
 enum PaymentGateway: string implements HasColor, HasIcon, HasLabel
 {
     case Stripe = 'stripe';
-    case PayPal = 'paypal';
     case Trial = 'trial';
     case Manual = 'manual';
 
@@ -17,7 +16,6 @@ enum PaymentGateway: string implements HasColor, HasIcon, HasLabel
     {
         return match ($this) {
             self::Stripe => 'Stripe',
-            self::PayPal => 'PayPal',
             self::Trial => 'Trial',
             self::Manual => 'Manual',
         };
@@ -27,7 +25,6 @@ enum PaymentGateway: string implements HasColor, HasIcon, HasLabel
     {
         return match ($this) {
             self::Stripe => 'indigo',
-            self::PayPal => 'info',
             self::Trial => 'success',
             self::Manual => 'gray',
         };
@@ -37,7 +34,6 @@ enum PaymentGateway: string implements HasColor, HasIcon, HasLabel
     {
         return match ($this) {
             self::Stripe => 'tabler-brand-stripe',
-            self::PayPal => 'tabler-brand-paypal',
             self::Trial => 'tabler-clock',
             self::Manual => 'tabler-user-shield',
         };

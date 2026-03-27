@@ -1,6 +1,6 @@
 <?php
 
-namespace Boy132\Billing\Policies;
+namespace Fywolf\Billing\Policies;
 
 use App\Policies\DefaultAdminPolicies;
 

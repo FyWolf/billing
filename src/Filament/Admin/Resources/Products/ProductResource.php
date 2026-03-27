@@ -1,12 +1,12 @@
 <?php
 
-namespace Boy132\Billing\Filament\Admin\Resources\Products;
+namespace Fywolf\Billing\Filament\Admin\Resources\Products;
 
 use App\Models\Node;
-use Boy132\Billing\Filament\Admin\Resources\Products\Pages\CreateProduct;
-use Boy132\Billing\Filament\Admin\Resources\Products\Pages\EditProduct;
-use Boy132\Billing\Filament\Admin\Resources\Products\Pages\ListProducts;
-use Boy132\Billing\Models\Product;
+use Fywolf\Billing\Filament\Admin\Resources\Products\Pages\CreateProduct;
+use Fywolf\Billing\Filament\Admin\Resources\Products\Pages\EditProduct;
+use Fywolf\Billing\Filament\Admin\Resources\Products\Pages\ListProducts;
+use Fywolf\Billing\Models\Product;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Select;
@@ -42,6 +42,13 @@ class ProductResource extends Resource
                 Textarea::make('description')
                     ->required()
                     ->autosize(),
+                TextInput::make('category')
+                    ->placeholder('e.g. Minecraft, VPS, Web Hosting')
+                    ->helperText('Products with the same category are grouped together on the store page.'),
+                TextInput::make('sort_order')
+                    ->numeric()
+                    ->default(0)
+                    ->helperText('Lower numbers appear first within a category.'),
                 Fieldset::make('Server')
                     ->columnSpanFull()
                     ->schema([
@@ -140,6 +147,10 @@ class ProductResource extends Resource
             ->columns([
                 TextColumn::make('name')
                     ->description(fn (Product $product) => $product->description)
+                    ->sortable()
+                    ->searchable(),
+                TextColumn::make('category')
+                    ->placeholder('Uncategorized')
                     ->sortable()
                     ->searchable(),
                 TextColumn::make('egg.name')

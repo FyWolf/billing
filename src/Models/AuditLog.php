@@ -1,6 +1,6 @@
 <?php
 
-namespace Boy132\Billing\Models;
+namespace Fywolf\Billing\Models;
 
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;

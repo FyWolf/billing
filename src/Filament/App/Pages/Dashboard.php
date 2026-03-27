@@ -1,10 +1,12 @@
 <?php
 
-namespace Boy132\Billing\Filament\App\Pages;
+namespace Fywolf\Billing\Filament\App\Pages;
 
-use Boy132\Billing\Filament\App\Widgets\ProductWidget;
-use Boy132\Billing\Filament\App\Widgets\WelcomeWidget;
-use Boy132\Billing\Models\Product;
+use Fywolf\Billing\Filament\App\Widgets\CategoryWidget;
+use Fywolf\Billing\Filament\App\Widgets\MyServersWidget;
+use Fywolf\Billing\Filament\App\Widgets\ProductWidget;
+use Fywolf\Billing\Filament\App\Widgets\WelcomeWidget;
+use Fywolf\Billing\Models\Product;
 use Filament\Pages\Dashboard as BaseDashboard;
 use Filament\Widgets\WidgetConfiguration;
 
@@ -12,17 +14,28 @@ class Dashboard extends BaseDashboard
 {
     public function getWidgets(): array
     {
-        $widgets = [new WidgetConfiguration(WelcomeWidget::class)];
+        $widgets = [
+            new WidgetConfiguration(WelcomeWidget::class),
+            new WidgetConfiguration(MyServersWidget::class),
+        ];
 
-        // Eager-load prices to avoid N+1 on the prices->count() and price->getLabel() calls
-        $products = Product::with('prices')->get();
+        $products = Product::with('prices')
+            ->orderBy('category')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get()
+            ->filter(fn (Product $product) => $product->prices->isNotEmpty());
 
-        foreach ($products as $product) {
-            if ($product->prices->isEmpty()) {
-                continue;
+        $grouped = $products->groupBy(fn (Product $product) => $product->category ?? '');
+
+        foreach ($grouped as $category => $categoryProducts) {
+            $widgets[] = new WidgetConfiguration(CategoryWidget::class, [
+                'categoryName' => $category ?: 'Other Products',
+            ]);
+
+            foreach ($categoryProducts as $product) {
+                $widgets[] = new WidgetConfiguration(ProductWidget::class, ['product' => $product]);
             }
-
-            $widgets[] = new WidgetConfiguration(ProductWidget::class, ['product' => $product]);
         }
 
         return $widgets;

@@ -1,27 +1,28 @@
 <?php
 
-namespace Boy132\Billing\Filament\App\Widgets;
+namespace Fywolf\Billing\Filament\App\Widgets;
 
-use App\Filament\Server\Pages\Console;
-use Boy132\Billing\Enums\OrderStatus;
-use Boy132\Billing\Enums\PaymentGateway;
-use Boy132\Billing\Models\Customer;
-use Boy132\Billing\Models\Order;
-use Boy132\Billing\Models\Product;
-use Boy132\Billing\Services\PayPalService;
+use Fywolf\Billing\Enums\OrderStatus;
+use Fywolf\Billing\Enums\PaymentGateway;
+use Fywolf\Billing\Filament\App\Pages\OrderComplete;
+use Fywolf\Billing\Models\Coupon;
+use Fywolf\Billing\Models\Customer;
+use Fywolf\Billing\Models\Order;
+use Fywolf\Billing\Models\Product;
 use Filament\Actions\Action;
 use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Actions;
+use Filament\Schemas\Components\Placeholder;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Concerns\InteractsWithSchemas;
 use Filament\Schemas\Contracts\HasSchemas;
 use Filament\Schemas\Schema;
 use Filament\Widgets\Widget;
+use Illuminate\Support\HtmlString;
 use Illuminate\Support\Number;
-use RuntimeException;
 
 class ProductWidget extends Widget implements HasActions, HasSchemas
 {
@@ -31,6 +32,8 @@ class ProductWidget extends Widget implements HasActions, HasSchemas
     protected string $view = 'billing::widget'; // @phpstan-ignore property.defaultValue
 
     public ?Product $product = null;
+
+    public string $couponCode = '';
 
     public function content(Schema $schema): Schema
     {
@@ -45,9 +48,6 @@ class ProductWidget extends Widget implements HasActions, HasSchemas
             $actions[] = Action::make(str_slug($price->name))
                 ->label($label)
                 ->action(function () use ($price) {
-                    // ----------------------------------------------------------
-                    // Ensure the customer record exists
-                    // ----------------------------------------------------------
                     /** @var Customer $customer */
                     $customer = Customer::firstOrCreate(
                         ['user_id' => user()->id],
@@ -58,23 +58,9 @@ class ProductWidget extends Widget implements HasActions, HasSchemas
                     );
 
                     // ----------------------------------------------------------
-                    // Duplicate order prevention
-                    // ----------------------------------------------------------
-                    if (Order::hasDuplicateFor($customer->id, $price->id)) {
-                        Notification::make()
-                            ->title('Already subscribed')
-                            ->body('You already have an active or pending order for this product.')
-                            ->warning()
-                            ->send();
-                        return;
-                    }
-
-                    // ----------------------------------------------------------
-                    // Free tier — activate immediately
+                    // Free tier — activate immediately (no Stripe subscription)
                     // ----------------------------------------------------------
                     if ($price->isFree()) {
-                        $price->sync();
-
                         /** @var Order $order */
                         $order = Order::create([
                             'customer_id'      => $customer->id,
@@ -86,11 +72,8 @@ class ProductWidget extends Widget implements HasActions, HasSchemas
                         $order->activate(null);
                         $order->refresh();
 
-                        if ($order->server) {
-                            return redirect(Console::getUrl(panel: 'server', tenant: $order->server));
-                        }
-
-                        return;
+                        $token = $order->generateConfirmationToken();
+                        return redirect(OrderComplete::getUrl(['token' => $token], panel: 'app'));
                     }
 
                     // ----------------------------------------------------------
@@ -113,48 +96,39 @@ class ProductWidget extends Widget implements HasActions, HasSchemas
                             $order->activateTrial($price->trial_days);
                             $order->refresh();
 
-                            Notification::make()
-                                ->title('Trial started!')
-                                ->body("Your {$price->trial_days}-day trial has begun.")
-                                ->success()
-                                ->send();
-
-                            return;
+                            $token = $order->generateConfirmationToken();
+                            return redirect(OrderComplete::getUrl(['token' => $token], panel: 'app'));
                         }
                     }
 
                     // ----------------------------------------------------------
-                    // Paid checkout — route to the active gateway
+                    // Paid — create Stripe subscription checkout
                     // ----------------------------------------------------------
                     $price->sync();
 
-                    $gateway = config('billing.active_gateway', 'stripe');
+                    $couponId = null;
+                    if ($this->couponCode) {
+                        $coupon = Coupon::findByCode($this->couponCode);
+                        if (!$coupon) {
+                            Notification::make()
+                                ->title('Invalid coupon')
+                                ->body('The coupon code you entered is not valid or has expired.')
+                                ->danger()
+                                ->send();
+                            return;
+                        }
+                        $couponId = $coupon->id;
+                    }
 
                     /** @var Order $order */
                     $order = Order::create([
                         'customer_id'      => $customer->id,
                         'product_price_id' => $price->id,
-                        'payment_gateway'  => $gateway,
+                        'coupon_id'        => $couponId,
+                        'payment_gateway'  => PaymentGateway::Stripe->value,
                         'status'           => OrderStatus::Pending->value,
                     ]);
 
-                    if ($gateway === PaymentGateway::PayPal->value) {
-                        try {
-                            $approvalUrl = app(PayPalService::class)->createOrder($order, $price);
-                            return $this->redirect($approvalUrl);
-                        } catch (RuntimeException $e) {
-                            report($e);
-                            $order->close();
-                            Notification::make()
-                                ->title('Payment unavailable')
-                                ->body('Could not initiate PayPal checkout. Please try again.')
-                                ->danger()
-                                ->send();
-                            return;
-                        }
-                    }
-
-                    // Stripe
                     try {
                         return $this->redirect($order->getCheckoutSession()->url);
                     } catch (\Exception $e) {
@@ -198,6 +172,15 @@ class ProductWidget extends Widget implements HasActions, HasSchemas
                             ->inlineLabel()
                             ->columnSpan(3)
                             ->visible(fn ($state) => $state > 0),
+                        Placeholder::make('coupon_code_input')
+                            ->label('Coupon Code')
+                            ->content(new HtmlString(
+                                '<input type="text" wire:model.defer="couponCode"'
+                                . ' placeholder="Enter coupon code (optional)"'
+                                . ' style="width:100%;padding:0.5rem 0.75rem;border-radius:0.5rem;border:1px solid;font-size:0.875rem;"'
+                                . ' class="border-gray-300 bg-white text-gray-950 dark:border-gray-600 dark:bg-gray-700 dark:text-white" />'
+                            ))
+                            ->columnSpanFull(),
                         Actions::make($actions)
                             ->columnSpanFull()
                             ->fullWidth(),

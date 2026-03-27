@@ -1,6 +1,6 @@
 <?php
 
-use Boy132\Billing\Enums\OrderStatus;
+use Fywolf\Billing\Enums\OrderStatus;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;

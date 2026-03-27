@@ -1,9 +1,9 @@
 <?php
 
-namespace Boy132\Billing\Filament\Admin\Resources\Products\Pages;
+namespace Fywolf\Billing\Filament\Admin\Resources\Products\Pages;
 
-use Boy132\Billing\Filament\Admin\Resources\Products\ProductResource;
-use Boy132\Billing\Models\Product;
+use Fywolf\Billing\Filament\Admin\Resources\Products\ProductResource;
+use Fywolf\Billing\Models\Product;
 use Filament\Resources\Pages\CreateRecord;
 
 /**

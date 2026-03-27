@@ -1,12 +1,10 @@
 <?php
 
-namespace Boy132\Billing\Providers;
+namespace Fywolf\Billing\Providers;
 
-use Boy132\Billing\Http\Controllers\Api\CheckoutController;
-use Boy132\Billing\Http\Controllers\Api\PayPalCheckoutController;
-use Boy132\Billing\Http\Controllers\Api\PayPalWebhookController;
-use Boy132\Billing\Http\Controllers\Api\StripeWebhookController;
-use Boy132\Billing\Http\Middleware\VerifyStripeWebhookSignature;
+use Fywolf\Billing\Http\Controllers\Api\CheckoutController;
+use Fywolf\Billing\Http\Controllers\Api\StripeWebhookController;
+use Fywolf\Billing\Http\Middleware\VerifyStripeWebhookSignature;
 use Illuminate\Foundation\Support\Providers\RouteServiceProvider;
 use Illuminate\Support\Facades\Route;
 
@@ -21,7 +19,7 @@ class BillingRoutesProvider extends RouteServiceProvider
             // Rate-limited: 20 attempts per minute per user to prevent abuse
             // ------------------------------------------------------------------
             Route::prefix('checkout')
-                ->middleware(['auth', 'throttle:20,1'])
+                ->middleware(['web', 'auth', 'throttle:20,1'])
                 ->group(function () {
                     Route::get('/success', [CheckoutController::class, 'success'])
                         ->name('billing.checkout.success');
@@ -36,26 +34,6 @@ class BillingRoutesProvider extends RouteServiceProvider
             Route::post('/webhooks/stripe', [StripeWebhookController::class, 'handle'])
                 ->name('billing.webhooks.stripe')
                 ->middleware(VerifyStripeWebhookSignature::class)
-                ->withoutMiddleware(['auth', 'web', 'verify-csrf-token', 'App\Http\Middleware\VerifyCsrfToken']);
-
-            // ------------------------------------------------------------------
-            // PayPal redirect callbacks (require auth)
-            // ------------------------------------------------------------------
-            Route::prefix('paypal')
-                ->middleware(['auth', 'throttle:20,1'])
-                ->group(function () {
-                    Route::get('/success', [PayPalCheckoutController::class, 'success'])
-                        ->name('billing.paypal.success');
-                    Route::get('/cancel', [PayPalCheckoutController::class, 'cancel'])
-                        ->name('billing.paypal.cancel');
-                });
-
-            // ------------------------------------------------------------------
-            // PayPal webhook — signature verified inside the controller via
-            // PayPalService::verifyWebhookSignature()
-            // ------------------------------------------------------------------
-            Route::post('/webhooks/paypal', [PayPalWebhookController::class, 'handle'])
-                ->name('billing.webhooks.paypal')
                 ->withoutMiddleware(['auth', 'web', 'verify-csrf-token', 'App\Http\Middleware\VerifyCsrfToken']);
         });
     }

@@ -1,12 +1,12 @@
 <?php
 
-namespace Boy132\Billing\Filament\Admin\Resources\Customers;
+namespace Fywolf\Billing\Filament\Admin\Resources\Customers;
 
 use App\Models\User;
-use Boy132\Billing\Filament\Admin\Resources\Customers\Pages\CreateCustomer;
-use Boy132\Billing\Filament\Admin\Resources\Customers\Pages\EditCustomer;
-use Boy132\Billing\Filament\Admin\Resources\Customers\Pages\ListCustomers;
-use Boy132\Billing\Models\Customer;
+use Fywolf\Billing\Filament\Admin\Resources\Customers\Pages\CreateCustomer;
+use Fywolf\Billing\Filament\Admin\Resources\Customers\Pages\EditCustomer;
+use Fywolf\Billing\Filament\Admin\Resources\Customers\Pages\ListCustomers;
+use Fywolf\Billing\Models\Customer;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Select;

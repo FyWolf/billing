@@ -1,6 +1,6 @@
 <?php
 
-namespace Boy132\Billing;
+namespace Fywolf\Billing;
 
 use App\Contracts\Plugins\HasPluginSettings;
 use App\Enums\CustomizationKey;
@@ -12,12 +12,10 @@ use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TagsInput;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Toggle;
 use Filament\Navigation\NavigationItem;
 use Filament\Notifications\Notification;
 use Filament\Panel;
 use Filament\Schemas\Components\Fieldset;
-use Filament\Schemas\Components\Utilities\Get;
 
 class BillingPlugin implements HasPluginSettings, Plugin
 {
@@ -53,9 +51,9 @@ class BillingPlugin implements HasPluginSettings, Plugin
             $panel->clearCachedComponents();
         }
 
-        $panel->discoverResources(plugin_path($this->getId(), "src/Filament/$id/Resources"), "Boy132\\Billing\\Filament\\$id\\Resources");
-        $panel->discoverPages(plugin_path($this->getId(), "src/Filament/$id/Pages"), "Boy132\\Billing\\Filament\\$id\\Pages");
-        $panel->discoverWidgets(plugin_path($this->getId(), "src/Filament/$id/Widgets"), "Boy132\\Billing\\Filament\\$id\\Widgets");
+        $panel->discoverResources(plugin_path($this->getId(), "src/Filament/$id/Resources"), "Fywolf\\Billing\\Filament\\$id\\Resources");
+        $panel->discoverPages(plugin_path($this->getId(), "src/Filament/$id/Pages"), "Fywolf\\Billing\\Filament\\$id\\Pages");
+        $panel->discoverWidgets(plugin_path($this->getId(), "src/Filament/$id/Widgets"), "Fywolf\\Billing\\Filament\\$id\\Widgets");
     }
 
     public function boot(Panel $panel): void {}
@@ -66,17 +64,6 @@ class BillingPlugin implements HasPluginSettings, Plugin
             // ------------------------------------------------------------------
             // General
             // ------------------------------------------------------------------
-            Select::make('active_gateway')
-                ->label('Active Payment Gateway')
-                ->required()
-                ->default(fn () => config('billing.active_gateway', 'stripe'))
-                ->options([
-                    'stripe' => 'Stripe',
-                    'paypal' => 'PayPal',
-                ])
-                ->live()
-                ->helperText('Switch between gateways at any time. Existing orders remember which gateway was used.'),
-
             Select::make('currency')
                 ->label('Currency')
                 ->required()
@@ -93,18 +80,70 @@ class BillingPlugin implements HasPluginSettings, Plugin
                 ->label('Grace Period (hours)')
                 ->numeric()
                 ->minValue(0)
-                ->maxValue(168) // 1 week max
+                ->maxValue(168)
                 ->default(fn () => config('billing.grace_period_hours', 24))
-                ->helperText('Hours a server stays online after order expiry before being suspended. 0 = suspend immediately.'),
+                ->helperText('Hours a server stays online after a failed renewal payment before being suspended. 0 = suspend immediately.'),
 
             TagsInput::make('deployment_tags')
                 ->label('Default Node Tags for Deployment'),
 
             // ------------------------------------------------------------------
+            // Company Information (for invoices)
+            // ------------------------------------------------------------------
+            Fieldset::make('Company Information')
+                ->schema([
+                    TextInput::make('company_name')
+                        ->label('Company Name')
+                        ->default(fn () => config('billing.company.name'))
+                        ->placeholder('Acme Hosting Ltd.'),
+
+                    TextInput::make('company_address')
+                        ->label('Address')
+                        ->default(fn () => config('billing.company.address'))
+                        ->placeholder('123 Main Street'),
+
+                    TextInput::make('company_city')
+                        ->label('City')
+                        ->default(fn () => config('billing.company.city'))
+                        ->placeholder('New York'),
+
+                    TextInput::make('company_zip')
+                        ->label('ZIP / Postal Code')
+                        ->default(fn () => config('billing.company.zip'))
+                        ->placeholder('10001'),
+
+                    TextInput::make('company_country')
+                        ->label('Country')
+                        ->default(fn () => config('billing.company.country'))
+                        ->placeholder('United States'),
+
+                    TextInput::make('company_email')
+                        ->label('Email')
+                        ->email()
+                        ->default(fn () => config('billing.company.email'))
+                        ->placeholder('billing@example.com'),
+
+                    TextInput::make('company_phone')
+                        ->label('Phone')
+                        ->default(fn () => config('billing.company.phone'))
+                        ->placeholder('+1 555 123 4567'),
+
+                    TextInput::make('company_vat')
+                        ->label('VAT / Tax ID')
+                        ->default(fn () => config('billing.company.vat'))
+                        ->placeholder('EU123456789'),
+
+                    TextInput::make('company_website')
+                        ->label('Website')
+                        ->url()
+                        ->default(fn () => config('billing.company.website'))
+                        ->placeholder('https://example.com'),
+                ]),
+
+            // ------------------------------------------------------------------
             // Stripe
             // ------------------------------------------------------------------
             Fieldset::make('Stripe')
-                ->visible(fn (Get $get) => $get('active_gateway') === 'stripe')
                 ->schema([
                     TextInput::make('stripe_key')
                         ->label('Publishable Key')
@@ -126,48 +165,15 @@ class BillingPlugin implements HasPluginSettings, Plugin
                         ->revealable()
                         ->default(fn () => config('billing.stripe.webhook_secret'))
                         ->placeholder('whsec_…')
-                        ->helperText('Found in Stripe Dashboard → Developers → Webhooks. Required for secure event processing.'),
+                        ->helperText('Found in Stripe Dashboard → Developers → Webhooks.'),
 
                     Placeholder::make('stripe_webhook_url')
                         ->label('Your Stripe Webhook URL')
                         ->content(fn () => url('/webhooks/stripe')),
-                ]),
 
-            // ------------------------------------------------------------------
-            // PayPal
-            // ------------------------------------------------------------------
-            Fieldset::make('PayPal')
-                ->visible(fn (Get $get) => $get('active_gateway') === 'paypal')
-                ->schema([
-                    Select::make('paypal_mode')
-                        ->label('Mode')
-                        ->required()
-                        ->default(fn () => config('billing.paypal.mode', 'sandbox'))
-                        ->options([
-                            'sandbox' => 'Sandbox (testing)',
-                            'live'    => 'Live (production)',
-                        ]),
-
-                    TextInput::make('paypal_client_id')
-                        ->label('Client ID')
-                        ->required()
-                        ->default(fn () => config('billing.paypal.client_id')),
-
-                    TextInput::make('paypal_secret')
-                        ->label('Secret')
-                        ->required()
-                        ->password()
-                        ->revealable()
-                        ->default(fn () => config('billing.paypal.secret')),
-
-                    TextInput::make('paypal_webhook_id')
-                        ->label('Webhook ID')
-                        ->default(fn () => config('billing.paypal.webhook_id'))
-                        ->helperText('From PayPal Developer Dashboard → Apps → Webhooks. Required for secure event processing.'),
-
-                    Placeholder::make('paypal_webhook_url')
-                        ->label('Your PayPal Webhook URL')
-                        ->content(fn () => url('/webhooks/paypal')),
+                    Placeholder::make('stripe_webhook_events')
+                        ->label('Required Webhook Events')
+                        ->content('checkout.session.completed, invoice.paid, invoice.payment_failed, customer.subscription.deleted'),
                 ]),
         ];
     }
@@ -175,22 +181,26 @@ class BillingPlugin implements HasPluginSettings, Plugin
     public function saveSettings(array $data): void
     {
         $env = [
-            'BILLING_GATEWAY'            => $data['active_gateway'],
             'BILLING_CURRENCY'           => $data['currency'],
             'BILLING_GRACE_PERIOD_HOURS' => $data['grace_period_hours'],
             'BILLING_DEPLOYMENT_TAGS'    => implode(',', $data['deployment_tags'] ?? []),
         ];
 
+        // Company
+        $env['BILLING_COMPANY_NAME']    = $data['company_name'] ?? '';
+        $env['BILLING_COMPANY_ADDRESS'] = $data['company_address'] ?? '';
+        $env['BILLING_COMPANY_CITY']    = $data['company_city'] ?? '';
+        $env['BILLING_COMPANY_COUNTRY'] = $data['company_country'] ?? '';
+        $env['BILLING_COMPANY_ZIP']     = $data['company_zip'] ?? '';
+        $env['BILLING_COMPANY_EMAIL']   = $data['company_email'] ?? '';
+        $env['BILLING_COMPANY_PHONE']   = $data['company_phone'] ?? '';
+        $env['BILLING_COMPANY_VAT']     = $data['company_vat'] ?? '';
+        $env['BILLING_COMPANY_WEBSITE'] = $data['company_website'] ?? '';
+
         // Stripe
         if (!empty($data['stripe_key']))            $env['STRIPE_KEY']            = $data['stripe_key'];
         if (!empty($data['stripe_secret']))         $env['STRIPE_SECRET']         = $data['stripe_secret'];
         if (!empty($data['stripe_webhook_secret'])) $env['STRIPE_WEBHOOK_SECRET'] = $data['stripe_webhook_secret'];
-
-        // PayPal
-        if (!empty($data['paypal_mode']))       $env['PAYPAL_MODE']       = $data['paypal_mode'];
-        if (!empty($data['paypal_client_id'])) $env['PAYPAL_CLIENT_ID']  = $data['paypal_client_id'];
-        if (!empty($data['paypal_secret']))    $env['PAYPAL_SECRET']      = $data['paypal_secret'];
-        if (!empty($data['paypal_webhook_id'])) $env['PAYPAL_WEBHOOK_ID'] = $data['paypal_webhook_id'];
 
         $this->writeToEnvironment($env);
 

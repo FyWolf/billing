@@ -1,11 +1,11 @@
 <?php
 
-namespace Boy132\Billing\Http\Controllers\Api;
+namespace Fywolf\Billing\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Boy132\Billing\Enums\OrderStatus;
-use Boy132\Billing\Models\AuditLog;
-use Boy132\Billing\Models\Order;
+use Fywolf\Billing\Enums\OrderStatus;
+use Fywolf\Billing\Models\AuditLog;
+use Fywolf\Billing\Models\Order;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Stripe\Event;
@@ -16,6 +16,12 @@ use Stripe\StripeClient;
  *
  * Signature verification happens in VerifyStripeWebhookSignature middleware,
  * which attaches the parsed \Stripe\Event to $request->attributes.
+ *
+ * Required webhook events in Stripe Dashboard:
+ * - checkout.session.completed
+ * - invoice.paid
+ * - invoice.payment_failed
+ * - customer.subscription.deleted
  */
 class StripeWebhookController extends Controller
 {
@@ -25,9 +31,11 @@ class StripeWebhookController extends Controller
         $event = $request->attributes->get('stripe_event');
 
         match ($event->type) {
-            'checkout.session.completed'  => $this->handleSessionCompleted($event->data->object),
-            'payment_intent.payment_failed' => $this->handlePaymentFailed($event->data->object),
-            default                       => null,
+            'checkout.session.completed'    => $this->handleSessionCompleted($event->data->object),
+            'invoice.paid'                  => $this->handleInvoicePaid($event->data->object),
+            'invoice.payment_failed'        => $this->handleInvoicePaymentFailed($event->data->object),
+            'customer.subscription.deleted' => $this->handleSubscriptionDeleted($event->data->object),
+            default                         => null,
         };
 
         return response('', 200);
@@ -37,6 +45,9 @@ class StripeWebhookController extends Controller
     // Event handlers
     // -------------------------------------------------------------------------
 
+    /**
+     * Initial checkout completed — activate the order.
+     */
     private function handleSessionCompleted(object $session): void
     {
         if ($session->payment_status !== 'paid') {
@@ -48,44 +59,109 @@ class StripeWebhookController extends Controller
             ->first();
 
         if (!$order) {
-            // Already activated (e.g. via redirect callback) or unknown session
             return;
         }
 
-        $order->activate($session->payment_intent);
+        $currentPeriodEnd = null;
+        if ($session->subscription) {
+            try {
+                /** @var StripeClient $stripeClient */
+                $stripeClient = app(StripeClient::class);
+                $subscription = $stripeClient->subscriptions->retrieve($session->subscription);
+                $currentPeriodEnd = $subscription->current_period_end;
+            } catch (\Exception $e) {
+                report($e);
+            }
+        }
+
+        $order->activate($session->subscription, $currentPeriodEnd);
 
         AuditLog::record('stripe_webhook_payment_received', [
             'stripe_session_id'      => $session->id,
-            'stripe_payment_intent'  => $session->payment_intent,
+            'stripe_subscription_id' => $session->subscription,
             'amount_total'           => $session->amount_total,
             'currency'               => $session->currency,
         ], $order);
     }
 
-    private function handlePaymentFailed(object $paymentIntent): void
+    /**
+     * Recurring invoice paid — renew the order's expiration.
+     * Skips the first invoice (handled by handleSessionCompleted).
+     */
+    private function handleInvoicePaid(object $invoice): void
     {
-        $order = null;
+        if ($invoice->billing_reason === 'subscription_create') {
+            return;
+        }
+
+        if (!$invoice->subscription) {
+            return;
+        }
+
+        $order = Order::where('stripe_subscription_id', $invoice->subscription)->first();
+
+        if (!$order) {
+            return;
+        }
 
         try {
             /** @var StripeClient $stripeClient */
             $stripeClient = app(StripeClient::class);
+            $subscription = $stripeClient->subscriptions->retrieve($invoice->subscription);
 
-            // Find the checkout session that created this payment intent
-            $sessions = $stripeClient->checkout->sessions->all([
-                'payment_intent' => $paymentIntent->id,
-                'limit' => 1,
-            ]);
+            $order->renew($subscription->current_period_end);
 
-            if (!empty($sessions->data)) {
-                $order = Order::where('stripe_checkout_id', $sessions->data[0]->id)->first();
-            }
+            AuditLog::record('stripe_subscription_renewed', [
+                'stripe_subscription_id' => $invoice->subscription,
+                'invoice_id'             => $invoice->id,
+                'amount_paid'            => $invoice->amount_paid,
+                'new_period_end'         => $subscription->current_period_end,
+            ], $order);
         } catch (\Exception $e) {
             report($e);
         }
+    }
 
-        AuditLog::record('stripe_payment_failed', [
-            'payment_intent_id'    => $paymentIntent->id,
-            'failure_message'      => $paymentIntent->last_payment_error?->message ?? 'Unknown',
+    /**
+     * Invoice payment failed — move active order to grace period.
+     */
+    private function handleInvoicePaymentFailed(object $invoice): void
+    {
+        if (!$invoice->subscription) {
+            return;
+        }
+
+        $order = Order::where('stripe_subscription_id', $invoice->subscription)->first();
+
+        if ($order && $order->status === OrderStatus::Active) {
+            $order->enterGracePeriod();
+        }
+
+        AuditLog::record('stripe_invoice_payment_failed', [
+            'stripe_subscription_id' => $invoice->subscription,
+            'invoice_id'             => $invoice->id,
+            'attempt_count'          => $invoice->attempt_count ?? null,
+        ], $order);
+    }
+
+    /**
+     * Subscription deleted (cancelled by Stripe after retries exhausted, or by user).
+     */
+    private function handleSubscriptionDeleted(object $subscription): void
+    {
+        $order = Order::where('stripe_subscription_id', $subscription->id)->first();
+
+        if (!$order) {
+            return;
+        }
+
+        if (in_array($order->status, [OrderStatus::Active, OrderStatus::GracePeriod])) {
+            $order->expire();
+        }
+
+        AuditLog::record('stripe_subscription_deleted', [
+            'stripe_subscription_id' => $subscription->id,
+            'cancellation_reason'    => $subscription->cancellation_details?->reason ?? null,
         ], $order);
     }
 }

@@ -1,9 +1,9 @@
 <?php
 
-namespace Boy132\Billing\Console\Commands;
+namespace Fywolf\Billing\Console\Commands;
 
-use Boy132\Billing\Enums\OrderStatus;
-use Boy132\Billing\Models\Order;
+use Fywolf\Billing\Enums\OrderStatus;
+use Fywolf\Billing\Models\Order;
 use Illuminate\Console\Command;
 
 class CheckOrdersCommand extends Command

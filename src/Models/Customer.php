@@ -1,6 +1,6 @@
 <?php
 
-namespace Boy132\Billing\Models;
+namespace Fywolf\Billing\Models;
 
 use App\Models\User;
 use Filament\Support\Contracts\HasLabel;
@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $last_name
  * @property int $balance
  * @property int $user_id
+ * @property ?string $stripe_customer_id
  * @property User $user
  * @property Collection|Order[] $orders
  */
@@ -25,6 +26,7 @@ class Customer extends Model implements HasLabel
         'last_name',
         'balance',
         'user_id',
+        'stripe_customer_id',
     ];
 
     public function user(): BelongsTo

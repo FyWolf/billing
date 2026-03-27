@@ -1,6 +1,6 @@
 <?php
 
-use Boy132\Billing\Enums\PriceInterval;
+use Fywolf\Billing\Enums\PriceInterval;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;

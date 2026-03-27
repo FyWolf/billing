@@ -1,9 +1,9 @@
 <?php
 
-namespace Boy132\Billing\Jobs;
+namespace Fywolf\Billing\Jobs;
 
-use Boy132\Billing\Models\AuditLog;
-use Boy132\Billing\Models\Order;
+use Fywolf\Billing\Models\AuditLog;
+use Fywolf\Billing\Models\Order;
 use Filament\Notifications\Notification;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;

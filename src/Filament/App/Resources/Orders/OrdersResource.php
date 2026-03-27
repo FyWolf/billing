@@ -1,14 +1,14 @@
 <?php
 
-namespace Boy132\Billing\Filament\App\Resources\Orders;
+namespace Fywolf\Billing\Filament\App\Resources\Orders;
 
 use App\Filament\Components\Tables\Columns\DateTimeColumn;
 use App\Filament\Server\Pages\Console;
-use Boy132\Billing\Enums\OrderStatus;
-use Boy132\Billing\Filament\App\Resources\Orders\Pages\ListOrders;
-use Boy132\Billing\Models\Customer;
-use Boy132\Billing\Models\Order;
-use Boy132\Billing\Models\ProductPrice;
+use Fywolf\Billing\Enums\OrderStatus;
+use Fywolf\Billing\Filament\App\Resources\Orders\Pages\ListOrders;
+use Fywolf\Billing\Models\Customer;
+use Fywolf\Billing\Models\Order;
+use Fywolf\Billing\Models\ProductPrice;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\Select;
@@ -24,6 +24,16 @@ class OrdersResource extends Resource
     protected static ?string $model = Order::class;
 
     protected static string|\BackedEnum|null $navigationIcon = 'tabler-truck-delivery';
+
+    public static function canAccess(): bool
+    {
+        return auth()->check();
+    }
+
+    public static function canViewAny(): bool
+    {
+        return auth()->check();
+    }
 
     public static function getEloquentQuery(): Builder
     {
@@ -121,15 +131,16 @@ class OrdersResource extends Resource
                     ->requiresConfirmation()
                     ->action(fn (Order $order) => redirect($order->getPaymentUrl())),
                 Action::make('cancel')
+                    ->label(fn (Order $order) => $order->stripe_subscription_id ? 'Cancel Subscription' : 'Cancel')
                     ->visible(fn (Order $order) => $order->status === OrderStatus::Pending || $order->status === OrderStatus::Active)
                     ->color('danger')
                     ->requiresConfirmation()
-                    ->action(fn (Order $order) => $order->close()),
-                Action::make('renew')
-                    ->visible(fn (Order $order) => $order->status === OrderStatus::Expired && $order->productPrice->renewable)
-                    ->color('warning')
-                    ->requiresConfirmation()
-                    ->action(fn (Order $order) => redirect($order->getPaymentUrl())),
+                    ->modalDescription(fn (Order $order) => $order->stripe_subscription_id
+                        ? 'This will cancel your Stripe subscription immediately. Your server will be suspended.'
+                        : 'Are you sure you want to cancel this order?')
+                    ->action(fn (Order $order) => $order->stripe_subscription_id
+                        ? $order->cancelSubscription()
+                        : $order->close()),
             ])
             ->emptyStateHeading('No Orders')
             ->emptyStateDescription('')

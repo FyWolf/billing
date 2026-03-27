@@ -1,17 +1,18 @@
 {
     "id": "billing",
     "name": "Billing",
-    "author": "Boy132",
-    "version": "1.0.2",
-    "description": "Production-ready billing plugin for game hosting. Supports Stripe and PayPal, grace periods, audit logging, and automated server provisioning.",
+    "author": "Fywolf",
+    "version": "2.0.0",
+    "description": "Production-ready billing plugin for game hosting. Supports Stripe subscriptions, grace periods, audit logging, and automated server provisioning.",
     "category": "plugin",
-    "url": "https://github.com/pelican-dev/plugins/tree/main/billing",
+    "url": "https://github.com/FyWolf/billing",
     "update_url": null,
-    "namespace": "Boy132\\Billing",
+    "namespace": "Fywolf\\Billing",
     "class": "BillingPlugin",
     "panels": null,
     "panel_version": null,
     "composer_packages": {
-        "stripe/stripe-php": "^18.0"
+        "stripe/stripe-php": "^18.0",
+        "barryvdh/laravel-dompdf": "^3.0"
     }
 }

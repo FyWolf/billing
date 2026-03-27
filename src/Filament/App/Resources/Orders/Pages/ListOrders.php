@@ -1,8 +1,8 @@
 <?php
 
-namespace Boy132\Billing\Filament\App\Resources\Orders\Pages;
+namespace Fywolf\Billing\Filament\App\Resources\Orders\Pages;
 
-use Boy132\Billing\Filament\App\Resources\Orders\OrdersResource;
+use Fywolf\Billing\Filament\App\Resources\Orders\OrdersResource;
 use Filament\Resources\Pages\ListRecords;
 
 class ListOrders extends ListRecords

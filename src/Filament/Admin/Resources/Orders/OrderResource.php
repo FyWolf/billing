@@ -1,19 +1,19 @@
 <?php
 
-namespace Boy132\Billing\Filament\Admin\Resources\Orders;
+namespace Fywolf\Billing\Filament\Admin\Resources\Orders;
 
 use App\Filament\Admin\Resources\Servers\Pages\EditServer;
 use App\Filament\Components\Tables\Columns\DateTimeColumn;
-use Boy132\Billing\Enums\OrderStatus;
-use Boy132\Billing\Enums\PaymentGateway;
-use Boy132\Billing\Filament\Admin\Resources\Customers\Pages\EditCustomer;
-use Boy132\Billing\Filament\Admin\Resources\Orders\Pages\ListOrders;
-use Boy132\Billing\Filament\Admin\Resources\Products\Pages\EditProduct;
-use Boy132\Billing\Models\AuditLog;
-use Boy132\Billing\Models\Customer;
-use Boy132\Billing\Models\Order;
-use Boy132\Billing\Models\Product;
-use Boy132\Billing\Models\ProductPrice;
+use Fywolf\Billing\Enums\OrderStatus;
+use Fywolf\Billing\Enums\PaymentGateway;
+use Fywolf\Billing\Filament\Admin\Resources\Customers\Pages\EditCustomer;
+use Fywolf\Billing\Filament\Admin\Resources\Orders\Pages\ListOrders;
+use Fywolf\Billing\Filament\Admin\Resources\Products\Pages\EditProduct;
+use Fywolf\Billing\Models\AuditLog;
+use Fywolf\Billing\Models\Customer;
+use Fywolf\Billing\Models\Order;
+use Fywolf\Billing\Models\Product;
+use Fywolf\Billing\Models\ProductPrice;
 use Exception;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
@@ -191,11 +191,14 @@ class OrderResource extends Resource
                         }
                     }),
                 Action::make('close')
+                    ->label(fn (Order $order) => $order->stripe_subscription_id ? 'Cancel Subscription' : 'Close')
                     ->visible(fn (Order $order) => in_array($order->status, [OrderStatus::Active, OrderStatus::GracePeriod]))
                     ->color('danger')
                     ->requiresConfirmation()
                     ->action(function (Order $order) {
-                        $order->close();
+                        $order->stripe_subscription_id
+                            ? $order->cancelSubscription()
+                            : $order->close();
 
                         AuditLog::record('admin_order_closed', [
                             'admin_id' => auth()->id(),

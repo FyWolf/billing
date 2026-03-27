@@ -1,9 +1,9 @@
 <?php
 
-namespace Boy132\Billing\Filament\Admin\Resources\AuditLogs;
+namespace Fywolf\Billing\Filament\Admin\Resources\AuditLogs;
 
-use Boy132\Billing\Filament\Admin\Resources\AuditLogs\Pages\ListAuditLogs;
-use Boy132\Billing\Models\AuditLog;
+use Fywolf\Billing\Filament\Admin\Resources\AuditLogs\Pages\ListAuditLogs;
+use Fywolf\Billing\Models\AuditLog;
 use Filament\Resources\Resource;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;

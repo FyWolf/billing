@@ -1,10 +1,10 @@
 <?php
 
-namespace Boy132\Billing\Filament\Admin\Resources\Orders\Pages;
+namespace Fywolf\Billing\Filament\Admin\Resources\Orders\Pages;
 
-use Boy132\Billing\Enums\OrderStatus;
-use Boy132\Billing\Filament\Admin\Resources\Orders\OrderResource;
-use Boy132\Billing\Models\Order;
+use Fywolf\Billing\Enums\OrderStatus;
+use Fywolf\Billing\Filament\Admin\Resources\Orders\OrderResource;
+use Fywolf\Billing\Models\Order;
 use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Schemas\Components\Tabs\Tab;

@@ -1,6 +1,6 @@
 <?php
 
-namespace Boy132\Billing\Models;
+namespace Fywolf\Billing\Models;
 
 use App\Enums\SuspendAction;
 use App\Models\Allocation;
@@ -10,11 +10,14 @@ use App\Models\Server;
 use App\Models\ServerVariable;
 use App\Services\Servers\ServerCreationService;
 use App\Services\Servers\SuspensionService;
-use Boy132\Billing\Enums\OrderStatus;
-use Boy132\Billing\Enums\PaymentGateway;
-use Boy132\Billing\Enums\PriceInterval;
-use Boy132\Billing\Jobs\CreateServerJob;
+use Fywolf\Billing\Enums\OrderStatus;
+use Fywolf\Billing\Enums\PaymentGateway;
+use Fywolf\Billing\Enums\PriceInterval;
+use Fywolf\Billing\Jobs\CreateServerJob;
+use Fywolf\Billing\Mail\OrderConfirmationMail;
 use Exception;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Filament\Support\Contracts\HasLabel;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -26,17 +29,20 @@ use Stripe\StripeClient;
  * @property int $id
  * @property ?string $stripe_checkout_id
  * @property ?string $stripe_payment_id
+ * @property ?string $stripe_subscription_id
  * @property ?string $payment_gateway
- * @property ?string $paypal_order_id
- * @property ?string $paypal_capture_id
  * @property bool $is_trial
  * @property OrderStatus $status
  * @property ?Carbon $expires_at
  * @property ?Carbon $grace_notified_at
+ * @property ?string $confirmation_token
+ * @property ?Carbon $confirmation_token_expires_at
  * @property int $customer_id
  * @property Customer $customer
  * @property int $product_price_id
  * @property ProductPrice $productPrice
+ * @property ?int $coupon_id
+ * @property ?Coupon $coupon
  * @property ?int $server_id
  * @property ?Server $server
  */
@@ -45,30 +51,33 @@ class Order extends Model implements HasLabel
     protected $fillable = [
         'stripe_checkout_id',
         'stripe_payment_id',
+        'stripe_subscription_id',
         'payment_gateway',
-        'paypal_order_id',
-        'paypal_capture_id',
         'is_trial',
         'status',
         'expires_at',
         'grace_notified_at',
+        'confirmation_token',
+        'confirmation_token_expires_at',
         'customer_id',
         'product_price_id',
+        'coupon_id',
         'server_id',
     ];
 
     protected function casts(): array
     {
         return [
-            'status'            => OrderStatus::class,
-            'expires_at'        => 'datetime',
-            'grace_notified_at' => 'datetime',
-            'is_trial'          => 'bool',
+            'status'                        => OrderStatus::class,
+            'expires_at'                    => 'datetime',
+            'grace_notified_at'             => 'datetime',
+            'confirmation_token_expires_at' => 'datetime',
+            'is_trial'                      => 'bool',
         ];
     }
 
     // -------------------------------------------------------------------------
-    // Relationships (lowercase method calls — PHP is case-sensitive on statics)
+    // Relationships
     // -------------------------------------------------------------------------
 
     public function customer(): BelongsTo
@@ -79,6 +88,11 @@ class Order extends Model implements HasLabel
     public function productPrice(): BelongsTo
     {
         return $this->belongsTo(ProductPrice::class, 'product_price_id');
+    }
+
+    public function coupon(): BelongsTo
+    {
+        return $this->belongsTo(Coupon::class, 'coupon_id');
     }
 
     public function server(): BelongsTo
@@ -96,36 +110,69 @@ class Order extends Model implements HasLabel
     }
 
     /**
-     * Check whether a customer already has an active or pending order for this price.
-     * Call before creating a new order to prevent duplicates.
+     * Generate a unique confirmation token valid for 24 hours.
      */
-    public static function hasDuplicateFor(int $customerId, int $productPriceId): bool
+    public function generateConfirmationToken(): string
     {
-        return static::where('customer_id', $customerId)
-            ->where('product_price_id', $productPriceId)
-            ->whereIn('status', [
-                OrderStatus::Pending->value,
-                OrderStatus::Active->value,
-                OrderStatus::GracePeriod->value,
-            ])
-            ->exists();
+        $token = Str::random(64);
+
+        $this->update([
+            'confirmation_token'            => $token,
+            'confirmation_token_expires_at' => now('UTC')->addHours(24),
+        ]);
+
+        return $token;
     }
 
     /**
-     * Returns the URL the user should visit to complete payment.
-     * Gateway-agnostic: callers should not need to know which gateway is active.
+     * Find an order by its confirmation token, or null if expired/invalid.
+     */
+    public static function findByConfirmationToken(string $token): ?self
+    {
+        return static::where('confirmation_token', $token)
+            ->where('confirmation_token_expires_at', '>', now('UTC'))
+            ->first();
+    }
+
+    /**
+     * Returns the Stripe Checkout URL for this order.
      */
     public function getPaymentUrl(): string
     {
-        if ($this->payment_gateway === PaymentGateway::PayPal->value) {
-            return app(\Boy132\Billing\Services\PayPalService::class)->getApprovalUrl($this);
-        }
-
         return $this->getCheckoutSession()->url;
     }
 
     // -------------------------------------------------------------------------
-    // Stripe checkout
+    // Stripe Customer
+    // -------------------------------------------------------------------------
+
+    /**
+     * Ensure a Stripe Customer exists for this order's customer and return the ID.
+     */
+    private function getOrCreateStripeCustomerId(): string
+    {
+        $customer = $this->customer;
+
+        if ($customer->stripe_customer_id) {
+            return $customer->stripe_customer_id;
+        }
+
+        /** @var StripeClient $stripeClient */
+        $stripeClient = app(StripeClient::class);
+
+        $stripeCustomer = $stripeClient->customers->create([
+            'email'    => $customer->user->email,
+            'name'     => $customer->first_name . ' ' . $customer->last_name,
+            'metadata' => ['customer_id' => $customer->id],
+        ]);
+
+        $customer->update(['stripe_customer_id' => $stripeCustomer->id]);
+
+        return $stripeCustomer->id;
+    }
+
+    // -------------------------------------------------------------------------
+    // Stripe Checkout (subscription mode)
     // -------------------------------------------------------------------------
 
     public function getCheckoutSession(): Session
@@ -134,26 +181,38 @@ class Order extends Model implements HasLabel
         $stripeClient = app(StripeClient::class);
 
         if (is_null($this->stripe_checkout_id)) {
-            $session = $stripeClient->checkout->sessions->create([
-                'customer_email' => $this->customer->user->email,
-                'success_url'    => route('billing.checkout.success') . '?session_id={CHECKOUT_SESSION_ID}',
-                'cancel_url'     => route('billing.checkout.cancel') . '?session_id={CHECKOUT_SESSION_ID}',
-                'line_items'     => [
+            $sessionData = [
+                'customer'    => $this->getOrCreateStripeCustomerId(),
+                'success_url' => route('billing.checkout.success') . '?session_id={CHECKOUT_SESSION_ID}',
+                'cancel_url'  => route('billing.checkout.cancel') . '?session_id={CHECKOUT_SESSION_ID}',
+                'line_items'  => [
                     [
                         'price'    => $this->productPrice->stripe_id,
                         'quantity' => 1,
                     ],
                 ],
-                'mode'                  => 'payment',
-                'allow_promotion_codes' => true,
-                'metadata'              => [
+                'mode'     => 'subscription',
+                'metadata' => [
                     'order_id'    => $this->id,
                     'customer_id' => $this->customer_id,
                 ],
-                'branding_settings' => [
-                    'display_name' => config('app.name'),
+                'subscription_data' => [
+                    'metadata' => [
+                        'order_id'    => $this->id,
+                        'customer_id' => $this->customer_id,
+                    ],
                 ],
-            ]);
+            ];
+
+            if ($this->coupon_id && $this->coupon?->stripe_coupon_id) {
+                $sessionData['discounts'] = [
+                    ['coupon' => $this->coupon->stripe_coupon_id],
+                ];
+            } else {
+                $sessionData['allow_promotion_codes'] = true;
+            }
+
+            $session = $stripeClient->checkout->sessions->create($sessionData);
 
             $this->update(['stripe_checkout_id' => $session->id]);
 
@@ -179,10 +238,26 @@ class Order extends Model implements HasLabel
         }
     }
 
-    private function clearPaymentIds(): void
+    // -------------------------------------------------------------------------
+    // Stripe Subscription management
+    // -------------------------------------------------------------------------
+
+    /**
+     * Cancel the Stripe Subscription and close the order.
+     */
+    public function cancelSubscription(): void
     {
-        $this->expireStripeCheckoutSession();
-        $this->update(['stripe_checkout_id' => null]);
+        if ($this->stripe_subscription_id) {
+            try {
+                /** @var StripeClient $stripeClient */
+                $stripeClient = app(StripeClient::class);
+                $stripeClient->subscriptions->cancel($this->stripe_subscription_id);
+            } catch (Exception $e) {
+                report($e);
+            }
+        }
+
+        $this->close();
     }
 
     // -------------------------------------------------------------------------
@@ -192,36 +267,34 @@ class Order extends Model implements HasLabel
     /**
      * Activate the order after successful payment.
      *
-     * @param string|null $paymentReference  Stripe payment_intent ID or PayPal capture ID
+     * @param string|null $subscriptionId     Stripe Subscription ID
+     * @param int|null    $currentPeriodEnd   Unix timestamp from Stripe subscription
      */
-    public function activate(?string $paymentReference): void
+    public function activate(?string $subscriptionId, ?int $currentPeriodEnd = null): void
     {
-        $expireDate = match ($this->productPrice->interval_type) {
-            PriceInterval::Day   => now('UTC')->addDays($this->productPrice->interval_value),
-            PriceInterval::Week  => now('UTC')->addWeeks($this->productPrice->interval_value),
-            PriceInterval::Month => now('UTC')->addMonths($this->productPrice->interval_value),
-            PriceInterval::Year  => now('UTC')->addYears($this->productPrice->interval_value),
-        };
+        $expireDate = $currentPeriodEnd
+            ? Carbon::createFromTimestamp($currentPeriodEnd)
+            : match ($this->productPrice->interval_type) {
+                PriceInterval::Day   => now('UTC')->addDays($this->productPrice->interval_value),
+                PriceInterval::Week  => now('UTC')->addWeeks($this->productPrice->interval_value),
+                PriceInterval::Month => now('UTC')->addMonths($this->productPrice->interval_value),
+                PriceInterval::Year  => now('UTC')->addYears($this->productPrice->interval_value),
+            };
 
-        $this->clearPaymentIds();
-
-        $isPayPal = $this->payment_gateway === PaymentGateway::PayPal->value;
+        $this->expireStripeCheckoutSession();
 
         $this->update([
-            'stripe_payment_id'  => $isPayPal ? null : $paymentReference,
-            'paypal_capture_id'  => $isPayPal ? $paymentReference : $this->paypal_capture_id,
-            'status'             => OrderStatus::Active,
-            'expires_at'         => $expireDate,
+            'stripe_subscription_id' => $subscriptionId ?? $this->stripe_subscription_id,
+            'status'                 => OrderStatus::Active,
+            'expires_at'             => $expireDate,
         ]);
 
         AuditLog::record('order_activated', [
-            'payment_gateway'   => $this->payment_gateway,
-            'payment_reference' => $paymentReference,
-            'expires_at'        => $expireDate->toIso8601String(),
+            'payment_gateway'       => $this->payment_gateway,
+            'stripe_subscription_id' => $subscriptionId,
+            'expires_at'            => $expireDate->toIso8601String(),
         ], $this);
 
-        // Provision or unsuspend the server via a queued job so payment
-        // callback returns immediately even if the node is slow.
         if ($this->server) {
             try {
                 app(SuspensionService::class)->handle($this->server, SuspendAction::Unsuspend);
@@ -231,6 +304,33 @@ class Order extends Model implements HasLabel
         } else {
             CreateServerJob::dispatch($this->id);
         }
+
+        $this->sendOrderConfirmationEmail();
+    }
+
+    /**
+     * Renew the order after a successful recurring invoice payment.
+     */
+    public function renew(int $currentPeriodEnd): void
+    {
+        $wasGracePeriod = $this->status === OrderStatus::GracePeriod;
+
+        $this->update([
+            'status'     => OrderStatus::Active,
+            'expires_at' => Carbon::createFromTimestamp($currentPeriodEnd),
+        ]);
+
+        if ($wasGracePeriod && $this->server) {
+            try {
+                app(SuspensionService::class)->handle($this->server, SuspendAction::Unsuspend);
+            } catch (Exception $exception) {
+                report($exception);
+            }
+        }
+
+        AuditLog::record('order_renewed', [
+            'new_expires_at' => Carbon::createFromTimestamp($currentPeriodEnd)->toIso8601String(),
+        ], $this);
     }
 
     /**
@@ -248,6 +348,8 @@ class Order extends Model implements HasLabel
         AuditLog::record('order_trial_activated', ['trial_days' => $trialDays], $this);
 
         CreateServerJob::dispatch($this->id);
+
+        $this->sendOrderConfirmationEmail();
     }
 
     /**
@@ -263,7 +365,7 @@ class Order extends Model implements HasLabel
             report($exception);
         }
 
-        $this->clearPaymentIds();
+        $this->expireStripeCheckoutSession();
 
         $this->update([
             'stripe_checkout_id' => null,
@@ -274,8 +376,7 @@ class Order extends Model implements HasLabel
     }
 
     /**
-     * Move to grace period (called by CheckOrdersCommand when expires_at is reached).
-     * Server stays online during the grace period.
+     * Move to grace period (called when expires_at is reached or invoice payment fails).
      */
     public function enterGracePeriod(): void
     {
@@ -289,6 +390,7 @@ class Order extends Model implements HasLabel
 
     /**
      * Expire the order after the grace period is exhausted.
+     * Also cancels the Stripe Subscription as a safety measure.
      */
     public function expire(): void
     {
@@ -300,7 +402,18 @@ class Order extends Model implements HasLabel
             report($exception);
         }
 
-        $this->clearPaymentIds();
+        // Cancel the Stripe Subscription to stop further billing
+        if ($this->stripe_subscription_id) {
+            try {
+                /** @var StripeClient $stripeClient */
+                $stripeClient = app(StripeClient::class);
+                $stripeClient->subscriptions->cancel($this->stripe_subscription_id);
+            } catch (Exception $e) {
+                report($e);
+            }
+        }
+
+        $this->expireStripeCheckoutSession();
 
         $this->update(['status' => OrderStatus::Expired]);
 
@@ -309,48 +422,26 @@ class Order extends Model implements HasLabel
         ], $this);
     }
 
-    /**
-     * Legacy method kept for backwards compatibility.
-     * Now delegates to grace-period-aware flow.
-     */
-    public function checkExpire(): bool
+    // -------------------------------------------------------------------------
+    // Email notifications
+    // -------------------------------------------------------------------------
+
+    private function sendOrderConfirmationEmail(): void
     {
-        if (is_null($this->expires_at)) {
-            return false;
+        try {
+            $this->load(['productPrice.product', 'customer.user']);
+            $email = $this->customer->user->email;
+
+            Mail::to($email)->queue(new OrderConfirmationMail($this));
+        } catch (Exception $e) {
+            report($e);
         }
-
-        $graceHours = (int) config('billing.grace_period_hours', 24);
-
-        // Active → GracePeriod when expires_at is reached
-        if ($this->status === OrderStatus::Active && now('UTC') >= $this->expires_at) {
-            if ($graceHours > 0) {
-                $this->enterGracePeriod();
-            } else {
-                $this->expire();
-            }
-            return true;
-        }
-
-        // GracePeriod → Expired when grace window is exhausted
-        if ($this->status === OrderStatus::GracePeriod) {
-            $graceDeadline = $this->expires_at->clone()->addHours($graceHours);
-            if (now('UTC') >= $graceDeadline) {
-                $this->expire();
-                return true;
-            }
-        }
-
-        return false;
     }
 
     // -------------------------------------------------------------------------
     // Plan changes (upgrade / downgrade)
     // -------------------------------------------------------------------------
 
-    /**
-     * Switch this order to a different price tier and update the server's
-     * startup variables to match the new price's environment overrides.
-     */
     public function changePlan(ProductPrice $newPrice): void
     {
         $oldPrice = $this->productPrice;
@@ -358,7 +449,6 @@ class Order extends Model implements HasLabel
         $this->update(['product_price_id' => $newPrice->id]);
         $this->load('productPrice');
 
-        // Update the server's startup variables if it exists
         if ($this->server) {
             $this->applyEnvironmentOverrides($this->server, $newPrice);
         }
@@ -373,17 +463,11 @@ class Order extends Model implements HasLabel
         ], $this);
     }
 
-    /**
-     * Apply a price tier's environment overrides to an existing server.
-     * Resets all overridable variables to egg defaults first, then applies
-     * the new price's overrides so that downgrades properly remove old values.
-     */
     private function applyEnvironmentOverrides(Server $server, ProductPrice $price): void
     {
         $product = $price->product;
         $eggVariables = EggVariable::where('egg_id', $product->egg_id)->get();
 
-        // Build a map of env_variable => override value from the new price
         $overrides = [];
         if (!empty($price->environment_overrides)) {
             foreach ($price->environment_overrides as $override) {
@@ -393,7 +477,6 @@ class Order extends Model implements HasLabel
             }
         }
 
-        // Update each egg variable: use the override if set, otherwise reset to default
         foreach ($eggVariables as $eggVariable) {
             $value = $overrides[$eggVariable->env_variable] ?? $eggVariable->default_value;
 
@@ -405,7 +488,7 @@ class Order extends Model implements HasLabel
     }
 
     // -------------------------------------------------------------------------
-    // Server provisioning (called directly by admin actions too)
+    // Server provisioning
     // -------------------------------------------------------------------------
 
     public function createServer(): Server
@@ -421,7 +504,6 @@ class Order extends Model implements HasLabel
             $environment[$variable->env_variable] = $variable->default_value;
         }
 
-        // Apply per-price variable overrides (e.g. locked player count)
         if (!empty($this->productPrice->environment_overrides)) {
             foreach ($this->productPrice->environment_overrides as $override) {
                 if (isset($override['variable'], $override['value'])) {
@@ -449,12 +531,10 @@ class Order extends Model implements HasLabel
         ];
 
         if (!empty($product->node_ids)) {
-            // Specific nodes configured — find a matching allocation manually
             $allocationQuery = Allocation::query()
                 ->whereIn('node_id', $product->node_ids)
                 ->whereNull('server_id');
 
-            // Filter by required ports if specified
             if (!empty($product->ports)) {
                 $ports = [];
                 foreach ($product->ports as $portRange) {
@@ -483,7 +563,6 @@ class Order extends Model implements HasLabel
 
             $server = app(ServerCreationService::class)->handle($data);
         } else {
-            // No specific nodes — use auto-deployment via tags
             $object = new DeploymentObject();
             $object->setDedicated(false);
             $object->setTags($product->tags);

@@ -1,10 +1,10 @@
 <?php
 
-namespace Boy132\Billing\Filament\Admin\Resources\Products\RelationManagers;
+namespace Fywolf\Billing\Filament\Admin\Resources\Products\RelationManagers;
 
-use Boy132\Billing\Enums\PriceInterval;
-use Boy132\Billing\Models\Product;
-use Boy132\Billing\Models\ProductPrice;
+use Fywolf\Billing\Enums\PriceInterval;
+use Fywolf\Billing\Models\Product;
+use Fywolf\Billing\Models\ProductPrice;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;

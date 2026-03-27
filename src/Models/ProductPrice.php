@@ -1,8 +1,8 @@
 <?php
 
-namespace Boy132\Billing\Models;
+namespace Fywolf\Billing\Models;
 
-use Boy132\Billing\Enums\PriceInterval;
+use Fywolf\Billing\Enums\PriceInterval;
 use Filament\Support\Contracts\HasLabel;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -86,15 +86,24 @@ class ProductPrice extends Model implements HasLabel
                     'nickname'    => $this->name,
                     'product'     => $this->product->stripe_id,
                     'unit_amount' => (int) round($this->cost * 100),
+                    'recurring'   => [
+                        'interval'       => $this->interval_type->value,
+                        'interval_count' => $this->interval_value,
+                    ],
                 ]);
 
                 $this->updateQuietly(['stripe_id' => $stripePrice->id]);
             } else {
                 $stripePrice = $stripeClient->prices->retrieve($this->stripe_id);
 
-                // Stripe prices are immutable — recreate if amount or product changed
-                if ($stripePrice->product !== $this->product->stripe_id
-                    || $stripePrice->unit_amount !== (int) round($this->cost * 100)) {
+                // Stripe prices are immutable — recreate if amount, product, or recurrence changed
+                $needsRecreate = $stripePrice->product !== $this->product->stripe_id
+                    || $stripePrice->unit_amount !== (int) round($this->cost * 100)
+                    || !isset($stripePrice->recurring)
+                    || $stripePrice->recurring->interval !== $this->interval_type->value
+                    || $stripePrice->recurring->interval_count !== $this->interval_value;
+
+                if ($needsRecreate) {
                     $this->updateQuietly(['stripe_id' => null]);
                     $this->sync();
                 }
@@ -128,7 +137,6 @@ class ProductPrice extends Model implements HasLabel
 
     private static function isStripeEnabled(): bool
     {
-        return config('billing.active_gateway', 'stripe') === 'stripe'
-            && !empty(config('billing.stripe.secret'));
+        return !empty(config('billing.stripe.secret'));
     }
 }

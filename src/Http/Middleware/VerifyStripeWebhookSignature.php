@@ -1,6 +1,6 @@
 <?php
 
-namespace Boy132\Billing\Http\Middleware;
+namespace Fywolf\Billing\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;

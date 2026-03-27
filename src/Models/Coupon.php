@@ -1,6 +1,6 @@
 <?php
 
-namespace Boy132\Billing\Models;
+namespace Fywolf\Billing\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -56,10 +56,7 @@ class Coupon extends Model
         });
 
         static::deleted(function (self $model) {
-            if (!self::isStripeEnabled()) {
-                return;
-            }
-            $model->deactivateStripePromotion();
+            $model->deleteStripeCoupon();
         });
     }
 
@@ -74,7 +71,7 @@ class Coupon extends Model
 
         try {
             if (is_null($this->stripe_coupon_id)) {
-                $this->createStripeObjects($stripeClient);
+                $this->createStripeCoupon($stripeClient);
             } else {
                 $stripeCoupon = $stripeClient->coupons->retrieve($this->stripe_coupon_id);
 
@@ -84,14 +81,13 @@ class Coupon extends Model
                     || $stripeCoupon->redeem_by !== ($this->redeem_by ? $this->redeem_by->timestamp : null);
 
                 if ($changed) {
-                    // Stripe coupons are immutable — deactivate old and recreate
-                    $this->deactivateStripePromotion();
+                    $this->deleteStripeCoupon();
                     $this->updateQuietly([
                         'stripe_coupon_id'    => null,
                         'stripe_promotion_id' => null,
                     ]);
                     $this->refresh();
-                    $this->createStripeObjects($stripeClient);
+                    $this->createStripeCoupon($stripeClient);
                 }
             }
         } catch (ApiErrorException $e) {
@@ -99,7 +95,7 @@ class Coupon extends Model
         }
     }
 
-    private function createStripeObjects(StripeClient $stripeClient): void
+    private function createStripeCoupon(StripeClient $stripeClient): void
     {
         $data = ['name' => $this->name];
 
@@ -122,23 +118,12 @@ class Coupon extends Model
 
         $stripeCoupon = $stripeClient->coupons->create($data);
 
-        // BUG FIX: promotionCodes->create takes 'coupon' as a direct key, not nested
-        $stripePromoCode = $stripeClient->promotionCodes->create([
-            'coupon' => $stripeCoupon->id,
-            'code'   => $this->code,
-        ]);
-
         $this->updateQuietly([
-            'stripe_coupon_id'    => $stripeCoupon->id,
-            'stripe_promotion_id' => $stripePromoCode->id,
+            'stripe_coupon_id' => $stripeCoupon->id,
         ]);
     }
 
-    /**
-     * Deactivate the Stripe promotion code, then delete the coupon.
-     * Stripe does not allow deleting promotion codes, only deactivating them.
-     */
-    private function deactivateStripePromotion(): void
+    private function deleteStripeCoupon(): void
     {
         if (!self::isStripeEnabled()) {
             return;
@@ -147,19 +132,6 @@ class Coupon extends Model
         /** @var StripeClient $stripeClient */
         $stripeClient = app(StripeClient::class);
 
-        // Deactivate promotion code (cannot be deleted via API)
-        if (!is_null($this->stripe_promotion_id)) {
-            try {
-                $stripeClient->promotionCodes->update(
-                    $this->stripe_promotion_id,
-                    ['active' => false]
-                );
-            } catch (ApiErrorException $e) {
-                report($e);
-            }
-        }
-
-        // Delete the underlying coupon (may fail if it has been redeemed)
         if (!is_null($this->stripe_coupon_id)) {
             try {
                 $stripeClient->coupons->delete($this->stripe_coupon_id);
@@ -169,9 +141,42 @@ class Coupon extends Model
         }
     }
 
+    /**
+     * Find a valid coupon by its code.
+     */
+    public static function findByCode(string $code): ?self
+    {
+        $coupon = static::where('code', $code)->first();
+
+        if (!$coupon) {
+            return null;
+        }
+
+        if ($coupon->redeem_by && $coupon->redeem_by->isPast()) {
+            return null;
+        }
+
+        return $coupon;
+    }
+
+    /**
+     * Calculate the discount amount for a given price.
+     */
+    public function calculateDiscount(float $price): float
+    {
+        if ($this->amount_off) {
+            return min($this->amount_off, $price);
+        }
+
+        if ($this->percent_off) {
+            return round($price * ($this->percent_off / 100), 2);
+        }
+
+        return 0;
+    }
+
     private static function isStripeEnabled(): bool
     {
-        return config('billing.active_gateway', 'stripe') === 'stripe'
-            && !empty(config('billing.stripe.secret'));
+        return !empty(config('billing.stripe.secret'));
     }
 }

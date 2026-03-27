@@ -1,14 +1,14 @@
 <?php
 
-namespace Boy132\Billing\Http\Controllers\Api;
+namespace Fywolf\Billing\Http\Controllers\Api;
 
-use App\Filament\Server\Pages\Console;
 use App\Http\Controllers\Controller;
-use Boy132\Billing\Enums\OrderStatus;
-use Boy132\Billing\Filament\App\Resources\Orders\Pages\ListOrders;
-use Boy132\Billing\Models\AuditLog;
-use Boy132\Billing\Models\Customer;
-use Boy132\Billing\Models\Order;
+use Fywolf\Billing\Enums\OrderStatus;
+use Fywolf\Billing\Filament\App\Pages\OrderComplete;
+use Fywolf\Billing\Filament\App\Resources\Orders\Pages\ListOrders;
+use Fywolf\Billing\Models\AuditLog;
+use Fywolf\Billing\Models\Customer;
+use Fywolf\Billing\Models\Order;
 use Filament\Facades\Filament;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -53,22 +53,31 @@ class CheckoutController extends Controller
 
         // Idempotent: if the webhook already activated the order, just redirect
         if ($order->status === OrderStatus::Active) {
-            return $order->server
-                ? redirect(Console::getUrl(panel: 'server', tenant: $order->server))
-                : redirect(ListOrders::getUrl(panel: 'app'));
+            $token = $order->generateConfirmationToken();
+            return redirect(OrderComplete::getUrl(['token' => $token], panel: 'app'));
         }
 
-        $order->activate($session->payment_intent);
+        // Retrieve subscription period end for expiration date
+        $currentPeriodEnd = null;
+        if ($session->subscription) {
+            try {
+                $subscription = $this->stripeClient->subscriptions->retrieve($session->subscription);
+                $currentPeriodEnd = $subscription->current_period_end;
+            } catch (\Exception $e) {
+                report($e);
+            }
+        }
+
+        $order->activate($session->subscription, $currentPeriodEnd);
         $order->refresh();
 
         AuditLog::record('stripe_redirect_payment_confirmed', [
-            'stripe_session_id'     => $session->id,
-            'stripe_payment_intent' => $session->payment_intent,
+            'stripe_session_id'      => $session->id,
+            'stripe_subscription_id' => $session->subscription,
         ], $order);
 
-        return $order->server
-            ? redirect(Console::getUrl(panel: 'server', tenant: $order->server))
-            : redirect(ListOrders::getUrl(panel: 'app'));
+        $token = $order->generateConfirmationToken();
+        return redirect(OrderComplete::getUrl(['token' => $token], panel: 'app'));
     }
 
     public function cancel(Request $request): RedirectResponse

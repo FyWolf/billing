@@ -1,8 +1,8 @@
 <?php
 
-namespace Boy132\Billing\Filament\Admin\Resources\Customers\Pages;
+namespace Fywolf\Billing\Filament\Admin\Resources\Customers\Pages;
 
-use Boy132\Billing\Filament\Admin\Resources\Customers\CustomerResource;
+use Fywolf\Billing\Filament\Admin\Resources\Customers\CustomerResource;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreateCustomer extends CreateRecord

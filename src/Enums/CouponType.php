@@ -1,6 +1,6 @@
 <?php
 
-namespace Boy132\Billing\Enums;
+namespace Fywolf\Billing\Enums;
 
 use Filament\Support\Contracts\HasLabel;
 

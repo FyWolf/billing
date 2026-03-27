@@ -1,6 +1,6 @@
 <?php
 
-namespace Boy132\Billing\Models;
+namespace Fywolf\Billing\Models;
 
 use App\Models\Egg;
 use Filament\Support\Contracts\HasLabel;
@@ -16,6 +16,8 @@ use Stripe\StripeClient;
  * @property ?string $stripe_id
  * @property string $name
  * @property string $description
+ * @property ?string $category
+ * @property int $sort_order
  * @property int $cpu
  * @property int $memory
  * @property int $disk
@@ -39,6 +41,8 @@ class Product extends Model implements HasLabel
         'stripe_id',
         'name',
         'description',
+        'category',
+        'sort_order',
         'egg_id',
         'cpu',
         'memory',
@@ -141,7 +145,6 @@ class Product extends Model implements HasLabel
 
     private static function isStripeEnabled(): bool
     {
-        return config('billing.active_gateway', 'stripe') === 'stripe'
-            && !empty(config('billing.stripe.secret'));
+        return !empty(config('billing.stripe.secret'));
     }
 }

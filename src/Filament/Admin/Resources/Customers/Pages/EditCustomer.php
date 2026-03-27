@@ -1,9 +1,9 @@
 <?php
 
-namespace Boy132\Billing\Filament\Admin\Resources\Customers\Pages;
+namespace Fywolf\Billing\Filament\Admin\Resources\Customers\Pages;
 
-use Boy132\Billing\Filament\Admin\Resources\Customers\CustomerResource;
-use Boy132\Billing\Filament\Admin\Resources\Customers\RelationManagers\OrderRelationManager;
+use Fywolf\Billing\Filament\Admin\Resources\Customers\CustomerResource;
+use Fywolf\Billing\Filament\Admin\Resources\Customers\RelationManagers\OrderRelationManager;
 use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
 

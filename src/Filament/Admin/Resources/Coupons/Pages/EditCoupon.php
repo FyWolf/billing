@@ -1,9 +1,9 @@
 <?php
 
-namespace Boy132\Billing\Filament\Admin\Resources\Coupons\Pages;
+namespace Fywolf\Billing\Filament\Admin\Resources\Coupons\Pages;
 
-use Boy132\Billing\Enums\CouponType;
-use Boy132\Billing\Filament\Admin\Resources\Coupons\CouponResource;
+use Fywolf\Billing\Enums\CouponType;
+use Fywolf\Billing\Filament\Admin\Resources\Coupons\CouponResource;
 use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
 
