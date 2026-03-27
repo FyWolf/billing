@@ -15,6 +15,7 @@ class CheckOrdersCommand extends Command
     public function handle(): int
     {
         $this->cleanupStalePendingOrders();
+        $this->processCancelledOrders();
         $this->processExpirations();
 
         return 0;
@@ -58,6 +59,23 @@ class CheckOrdersCommand extends Command
             ->each(function (Order $order) {
                 $order->expire();
                 $this->line("Order #{$order->id} expired after grace period.");
+            });
+    }
+
+    /**
+     * Close Cancelled orders whose billing period has ended.
+     * This is a safety net — Stripe's subscription.deleted webhook should
+     * normally handle this, but the cron catches any missed webhooks.
+     */
+    private function processCancelledOrders(): void
+    {
+        Order::where('status', OrderStatus::Cancelled->value)
+            ->whereNotNull('expires_at')
+            ->where('expires_at', '<=', now('UTC'))
+            ->cursor()
+            ->each(function (Order $order) {
+                $order->close();
+                $this->line("Order #{$order->id} closed (cancellation period ended).");
             });
     }
 

@@ -155,7 +155,9 @@ class StripeWebhookController extends Controller
             return;
         }
 
-        if (in_array($order->status, [OrderStatus::Active, OrderStatus::GracePeriod])) {
+        if ($order->status === OrderStatus::Cancelled) {
+            $order->close();
+        } elseif (in_array($order->status, [OrderStatus::Active, OrderStatus::GracePeriod])) {
             $order->expire();
         }
 

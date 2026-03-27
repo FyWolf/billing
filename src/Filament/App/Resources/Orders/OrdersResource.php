@@ -144,7 +144,7 @@ class OrdersResource extends Resource
                     ->color('danger')
                     ->requiresConfirmation()
                     ->modalDescription(fn (Order $order) => $order->stripe_subscription_id
-                        ? 'This will cancel your Stripe subscription immediately. Your server will be suspended.'
+                        ? 'Your subscription will be cancelled at the end of the current billing period (' . ($order->expires_at?->format('M j, Y') ?? 'unknown') . '). Your server will remain active until then.'
                         : 'Are you sure you want to cancel this order?')
                     ->action(fn (Order $order) => $order->stripe_subscription_id
                         ? $order->cancelSubscription()

@@ -205,6 +205,9 @@ class OrderResource extends Resource
                     ->visible(fn (Order $order) => in_array($order->status, [OrderStatus::Active, OrderStatus::GracePeriod]))
                     ->color('danger')
                     ->requiresConfirmation()
+                    ->modalDescription(fn (Order $order) => $order->stripe_subscription_id
+                        ? 'The subscription will be cancelled at the end of the current billing period (' . ($order->expires_at?->format('M j, Y') ?? 'unknown') . '). The server will remain active until then.'
+                        : null)
                     ->action(function (Order $order) {
                         $order->stripe_subscription_id
                             ? $order->cancelSubscription()
@@ -215,8 +218,10 @@ class OrderResource extends Resource
                         ], $order);
 
                         Notification::make()
-                            ->title('Order closed')
-                            ->body($order->getLabel())
+                            ->title($order->stripe_subscription_id ? 'Subscription cancellation scheduled' : 'Order closed')
+                            ->body($order->stripe_subscription_id
+                                ? $order->getLabel() . ' will be closed on ' . ($order->expires_at?->format('M j, Y') ?? 'period end') . '.'
+                                : $order->getLabel())
                             ->success()
                             ->send();
                     }),

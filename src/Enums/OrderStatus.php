@@ -11,6 +11,7 @@ enum OrderStatus: string implements HasColor, HasIcon, HasLabel
     case Pending = 'pending';
     case Active = 'active';
     case GracePeriod = 'grace_period';
+    case Cancelled = 'cancelled';
     case Expired = 'expired';
     case Closed = 'closed';
 
@@ -20,6 +21,7 @@ enum OrderStatus: string implements HasColor, HasIcon, HasLabel
             self::Pending => 'warning',
             self::Active => 'success',
             self::GracePeriod => 'warning',
+            self::Cancelled => 'warning',
             self::Expired => 'danger',
             self::Closed => 'gray',
         };
@@ -31,6 +33,7 @@ enum OrderStatus: string implements HasColor, HasIcon, HasLabel
             self::Pending => 'tabler-circle-dotted',
             self::Active => 'tabler-circle-check',
             self::GracePeriod => 'tabler-clock-exclamation',
+            self::Cancelled => 'tabler-circle-minus',
             self::Expired => 'tabler-clock-hour-4',
             self::Closed => 'tabler-circle-x',
         };
@@ -42,6 +45,7 @@ enum OrderStatus: string implements HasColor, HasIcon, HasLabel
             self::Pending => 'Pending',
             self::Active => 'Active',
             self::GracePeriod => 'Grace Period',
+            self::Cancelled => 'Cancelled',
             self::Expired => 'Expired',
             self::Closed => 'Closed',
         };

@@ -35,6 +35,7 @@ use Stripe\StripeClient;
  * @property OrderStatus $status
  * @property ?Carbon $expires_at
  * @property ?Carbon $grace_notified_at
+ * @property ?Carbon $cancelled_at
  * @property ?string $confirmation_token
  * @property ?Carbon $confirmation_token_expires_at
  * @property int $customer_id
@@ -59,6 +60,7 @@ class Order extends Model implements HasLabel
         'status',
         'expires_at',
         'grace_notified_at',
+        'cancelled_at',
         'confirmation_token',
         'confirmation_token_expires_at',
         'customer_id',
@@ -74,6 +76,7 @@ class Order extends Model implements HasLabel
             'status'                        => OrderStatus::class,
             'expires_at'                    => 'datetime',
             'grace_notified_at'             => 'datetime',
+            'cancelled_at'                  => 'datetime',
             'confirmation_token_expires_at' => 'datetime',
             'is_trial'                      => 'bool',
         ];
@@ -256,7 +259,8 @@ class Order extends Model implements HasLabel
     // -------------------------------------------------------------------------
 
     /**
-     * Cancel the Stripe Subscription and close the order.
+     * Cancel the Stripe Subscription at the end of the current billing period.
+     * The server remains active until expires_at is reached.
      */
     public function cancelSubscription(): void
     {
@@ -264,13 +268,22 @@ class Order extends Model implements HasLabel
             try {
                 /** @var StripeClient $stripeClient */
                 $stripeClient = app(StripeClient::class);
-                $stripeClient->subscriptions->cancel($this->stripe_subscription_id);
+                $stripeClient->subscriptions->update($this->stripe_subscription_id, [
+                    'cancel_at_period_end' => true,
+                ]);
             } catch (Exception $e) {
                 report($e);
             }
         }
 
-        $this->close();
+        $this->update([
+            'status'       => OrderStatus::Cancelled,
+            'cancelled_at' => now('UTC'),
+        ]);
+
+        AuditLog::record('order_cancelled', [
+            'expires_at' => $this->expires_at?->toIso8601String(),
+        ], $this);
     }
 
     // -------------------------------------------------------------------------
