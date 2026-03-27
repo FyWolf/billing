@@ -65,7 +65,8 @@ class ProductPrice extends Model implements HasLabel
 
     public function getLabel(): string
     {
-        return $this->interval_value . ' ' . str_plural($this->interval_type->getLabel(), $this->interval_value) . ' - ' . $this->formatCost();
+        $billing = $this->interval_value . ' ' . str_plural($this->interval_type->getLabel(), $this->interval_value) . ' - ' . $this->formatCost();
+        return $this->name ? $this->name . ' — ' . $billing : $billing;
     }
 
     public function sync(): void
