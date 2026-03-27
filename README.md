@@ -1,7 +1,6 @@
 # Billing Plugin for Pelican Panel
 
 **Author:** Fywolf
-**Version:** 2.0.0
 **Requires:** Pelican Panel · Filament v4 · PHP 8.2+
 
 A production-ready billing plugin for game hosting panels. Handles the full lifecycle of server orders — from checkout to automatic monthly renewals — entirely through Stripe Subscriptions.

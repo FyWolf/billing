@@ -339,19 +339,21 @@ class Order extends Model implements HasLabel
             return $this->stripe_payment_id;
         }
 
-        // 2. Subscription → latest invoice → payment intent
+        // 2. Subscription → list paid invoices → payment intent
         if ($this->stripe_subscription_id) {
-            $subscription = $stripeClient->subscriptions->retrieve(
-                $this->stripe_subscription_id,
-                ['expand' => ['latest_invoice']],
-            );
+            $invoices = $stripeClient->invoices->all([
+                'subscription' => $this->stripe_subscription_id,
+                'limit'        => 10,
+            ]);
 
-            if ($subscription->latest_invoice?->payment_intent) {
-                return $subscription->latest_invoice->payment_intent;
+            foreach ($invoices->data as $invoice) {
+                if ($invoice->payment_intent) {
+                    return $invoice->payment_intent;
+                }
             }
         }
 
-        // 3. Checkout session → payment intent
+        // 3. Checkout session → payment intent (one-time payments only)
         if ($this->stripe_checkout_id) {
             $session = $stripeClient->checkout->sessions->retrieve($this->stripe_checkout_id);
 

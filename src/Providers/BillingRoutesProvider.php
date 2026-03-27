@@ -2,6 +2,7 @@
 
 namespace Fywolf\Billing\Providers;
 
+use Fywolf\Billing\Http\Controllers\Api\CatalogController;
 use Fywolf\Billing\Http\Controllers\Api\CheckoutController;
 use Fywolf\Billing\Http\Controllers\Api\StripeWebhookController;
 use Fywolf\Billing\Http\Middleware\VerifyStripeWebhookSignature;
@@ -26,6 +27,15 @@ class BillingRoutesProvider extends RouteServiceProvider
                     Route::get('/cancel', [CheckoutController::class, 'cancel'])
                         ->name('billing.checkout.cancel');
                 });
+
+            // ------------------------------------------------------------------
+            // Public catalog API — uses Pelican's built-in API key system
+            // Requires a valid Application API key (created in admin panel)
+            // ------------------------------------------------------------------
+            Route::get('/api/application/billing/catalog', CatalogController::class)
+                ->name('billing.api.catalog')
+                ->middleware(['auth:sanctum', 'throttle:60,1'])
+                ->withoutMiddleware(['web', 'auth', 'verify-csrf-token', 'App\Http\Middleware\VerifyCsrfToken']);
 
             // ------------------------------------------------------------------
             // Stripe webhook — no auth, but HMAC signature is verified via
