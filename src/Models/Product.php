@@ -16,6 +16,7 @@ use Stripe\StripeClient;
  * @property ?string $stripe_id
  * @property string $name
  * @property string $description
+ * @property ?string $image
  * @property ?string $category
  * @property int $sort_order
  * @property int $cpu
@@ -41,6 +42,7 @@ class Product extends Model implements HasLabel
         'stripe_id',
         'name',
         'description',
+        'image',
         'category',
         'sort_order',
         'egg_id',

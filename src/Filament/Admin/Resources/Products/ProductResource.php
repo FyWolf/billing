@@ -9,6 +9,7 @@ use Fywolf\Billing\Filament\Admin\Resources\Products\Pages\ListProducts;
 use Fywolf\Billing\Models\Product;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TagsInput;
 use Filament\Forms\Components\Textarea;
@@ -42,6 +43,13 @@ class ProductResource extends Resource
                 Textarea::make('description')
                     ->required()
                     ->autosize(),
+                FileUpload::make('image')
+                    ->image()
+                    ->disk('public')
+                    ->directory('billing/products')
+                    ->visibility('public')
+                    ->imagePreviewHeight('160')
+                    ->columnSpanFull(),
                 TextInput::make('category')
                     ->placeholder('e.g. Minecraft, VPS, Web Hosting')
                     ->helperText('Products with the same category are grouped together on the store page.'),
