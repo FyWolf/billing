@@ -101,6 +101,12 @@ class OrderResource extends Resource
                         $formatter = new NumberFormatter(auth()->user()->language, NumberFormatter::CURRENCY);
                         return $formatter->formatCurrency($state, config('billing.currency'));
                     }),
+                TextColumn::make('pendingPrice.name')
+                    ->label('Pending Plan')
+                    ->placeholder('—')
+                    ->icon('tabler-clock')
+                    ->color('warning')
+                    ->tooltip('Plan change scheduled for next renewal'),
                 DateTimeColumn::make('expires_at')
                     ->label('Expires')
                     ->placeholder('No expire')
@@ -133,7 +139,9 @@ class OrderResource extends Resource
                     ])
                     ->requiresConfirmation()
                     ->modalHeading('Change Plan')
-                    ->modalDescription('The server\'s startup variables will be updated immediately.')
+                    ->modalDescription(fn (Order $order) => $order->stripe_subscription_id
+                        ? 'The server\'s startup variables will be updated immediately. The new billing rate takes effect at the next renewal.'
+                        : 'The server\'s startup variables will be updated immediately.')
                     ->action(function (Order $order, array $data) {
                         $newPrice = ProductPrice::findOrFail($data['new_price_id']);
 
@@ -146,8 +154,10 @@ class OrderResource extends Resource
                         ], $order);
 
                         Notification::make()
-                            ->title('Plan changed')
-                            ->body("Switched {$order->getLabel()} to {$newPrice->name}")
+                            ->title($order->stripe_subscription_id ? 'Plan change scheduled' : 'Plan changed')
+                            ->body($order->stripe_subscription_id
+                                ? "Plan change to {$newPrice->name} will apply at next renewal."
+                                : "Switched {$order->getLabel()} to {$newPrice->name}.")
                             ->success()
                             ->send();
                     }),

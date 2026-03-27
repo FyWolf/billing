@@ -41,6 +41,8 @@ use Stripe\StripeClient;
  * @property Customer $customer
  * @property int $product_price_id
  * @property ProductPrice $productPrice
+ * @property ?int $pending_price_id
+ * @property ?ProductPrice $pendingPrice
  * @property ?int $coupon_id
  * @property ?Coupon $coupon
  * @property ?int $server_id
@@ -61,6 +63,7 @@ class Order extends Model implements HasLabel
         'confirmation_token_expires_at',
         'customer_id',
         'product_price_id',
+        'pending_price_id',
         'coupon_id',
         'server_id',
     ];
@@ -88,6 +91,11 @@ class Order extends Model implements HasLabel
     public function productPrice(): BelongsTo
     {
         return $this->belongsTo(ProductPrice::class, 'product_price_id');
+    }
+
+    public function pendingPrice(): BelongsTo
+    {
+        return $this->belongsTo(ProductPrice::class, 'pending_price_id');
     }
 
     public function coupon(): BelongsTo
@@ -320,10 +328,48 @@ class Order extends Model implements HasLabel
     {
         $wasGracePeriod = $this->status === OrderStatus::GracePeriod;
 
-        $this->update([
+        $updates = [
             'status'     => OrderStatus::Active,
             'expires_at' => Carbon::createFromTimestamp($currentPeriodEnd),
-        ]);
+        ];
+
+        // Apply any scheduled plan change at this renewal boundary.
+        if ($this->pending_price_id) {
+            $newPrice = ProductPrice::find($this->pending_price_id);
+
+            if ($newPrice) {
+                $updates['product_price_id'] = $newPrice->id;
+                $updates['pending_price_id'] = null;
+
+                // Switch the Stripe subscription to the new price so that
+                // the next billing cycle charges the correct amount.
+                if ($this->stripe_subscription_id) {
+                    try {
+                        /** @var StripeClient $stripeClient */
+                        $stripeClient = app(StripeClient::class);
+                        $subscription = $stripeClient->subscriptions->retrieve($this->stripe_subscription_id);
+                        $stripeClient->subscriptions->update($this->stripe_subscription_id, [
+                            'items' => [[
+                                'id'    => $subscription->items->data[0]->id,
+                                'price' => $newPrice->stripe_id,
+                            ]],
+                            'proration_behavior' => 'none',
+                        ]);
+                    } catch (Exception $e) {
+                        report($e);
+                    }
+                }
+
+                AuditLog::record('order_plan_change_applied', [
+                    'new_price_id'   => $newPrice->id,
+                    'new_price_name' => $newPrice->name,
+                    'applied_at'     => now('UTC')->toIso8601String(),
+                ], $this);
+            }
+        }
+
+        $this->update($updates);
+        $this->load('productPrice');
 
         if ($wasGracePeriod && $this->server) {
             try {
@@ -450,22 +496,40 @@ class Order extends Model implements HasLabel
     public function changePlan(ProductPrice $newPrice): void
     {
         $oldPrice = $this->productPrice;
-
-        $this->update(['product_price_id' => $newPrice->id]);
-        $this->load('productPrice');
-
-        if ($this->server) {
-            $this->applyEnvironmentOverrides($this->server, $newPrice);
-        }
-
         $direction = $newPrice->cost > $oldPrice->cost ? 'upgrade' : 'downgrade';
 
-        AuditLog::record("order_plan_{$direction}", [
-            'old_price_id'   => $oldPrice->id,
-            'old_price_name' => $oldPrice->name,
-            'new_price_id'   => $newPrice->id,
-            'new_price_name' => $newPrice->name,
-        ], $this);
+        if ($this->stripe_subscription_id) {
+            // Subscription order: schedule the price change for next renewal.
+            // The server's environment overrides are updated immediately so the
+            // server spec is correct, but billing only switches next cycle.
+            $this->update(['pending_price_id' => $newPrice->id]);
+
+            if ($this->server) {
+                $this->applyEnvironmentOverrides($this->server, $newPrice);
+            }
+
+            AuditLog::record("order_plan_{$direction}_scheduled", [
+                'old_price_id'   => $oldPrice->id,
+                'old_price_name' => $oldPrice->name,
+                'new_price_id'   => $newPrice->id,
+                'new_price_name' => $newPrice->name,
+            ], $this);
+        } else {
+            // One-time order: no billing implication, apply immediately.
+            $this->update(['product_price_id' => $newPrice->id]);
+            $this->load('productPrice');
+
+            if ($this->server) {
+                $this->applyEnvironmentOverrides($this->server, $newPrice);
+            }
+
+            AuditLog::record("order_plan_{$direction}", [
+                'old_price_id'   => $oldPrice->id,
+                'old_price_name' => $oldPrice->name,
+                'new_price_id'   => $newPrice->id,
+                'new_price_name' => $newPrice->name,
+            ], $this);
+        }
     }
 
     private function applyEnvironmentOverrides(Server $server, ProductPrice $price): void

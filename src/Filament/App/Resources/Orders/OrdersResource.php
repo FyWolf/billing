@@ -101,11 +101,15 @@ class OrdersResource extends Resource
                             ->options(function () use ($order) {
                                 $currentPrice = $order->productPrice;
 
+                                // Only show prices of the same billing type (renewable ↔ renewable,
+                                // one-time ↔ one-time). Switching between types requires a new checkout.
                                 return ProductPrice::where('product_id', $currentPrice->product_id)
                                     ->where('id', '!=', $currentPrice->id)
+                                    ->where('renewable', $currentPrice->renewable)
                                     ->get()
                                     ->mapWithKeys(fn (ProductPrice $price) => [
-                                        $price->id => $price->name . ' — ' . $price->formatCost() . ($price->cost > $currentPrice->cost ? ' (upgrade)' : ' (downgrade)'),
+                                        $price->id => $price->name . ' — ' . $price->formatCost()
+                                            . ($price->cost > $currentPrice->cost ? ' (upgrade)' : ' (downgrade)'),
                                     ]);
                             })
                             ->required()
@@ -113,15 +117,19 @@ class OrdersResource extends Resource
                     ])
                     ->requiresConfirmation()
                     ->modalHeading('Change Plan')
-                    ->modalDescription('Your server\'s startup variables will be updated immediately. The new price takes effect on your next renewal.')
+                    ->modalDescription(fn (Order $order) => $order->stripe_subscription_id
+                        ? 'Your server\'s startup variables will be updated immediately. The new billing rate takes effect at your next renewal — you won\'t be charged twice for the current period.'
+                        : 'Your server\'s startup variables will be updated immediately.')
                     ->action(function (Order $order, array $data) {
                         $newPrice = ProductPrice::findOrFail($data['new_price_id']);
 
                         $order->changePlan($newPrice);
 
                         Notification::make()
-                            ->title('Plan changed')
-                            ->body("Switched to {$newPrice->name}. Server variables have been updated.")
+                            ->title($order->stripe_subscription_id ? 'Plan change scheduled' : 'Plan changed')
+                            ->body($order->stripe_subscription_id
+                                ? "Switching to {$newPrice->name} at your next renewal."
+                                : "Switched to {$newPrice->name}.")
                             ->success()
                             ->send();
                     }),
