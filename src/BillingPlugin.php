@@ -19,7 +19,6 @@ use Filament\Notifications\Notification;
 use Filament\Panel;
 use Filament\Schemas\Components\Fieldset;
 use Fywolf\Billing\Enums\OrderStatus;
-use Fywolf\Billing\Models\Customer;
 use Fywolf\Billing\Models\Order;
 
 class BillingPlugin implements HasPluginSettings, Plugin
@@ -63,48 +62,26 @@ class BillingPlugin implements HasPluginSettings, Plugin
 
     public function boot(Panel $panel): void
     {
-        if (!auth()->check()) {
+        if ($panel->getId() !== 'server' || !auth()->check()) {
             return;
         }
 
-        $panelId = $panel->getId();
+        $server = Filament::getTenant();
 
-        if ($panelId === 'app') {
-            $customer = Customer::where('user_id', auth()->id())->first();
-
-            if ($customer) {
-                Order::where('customer_id', $customer->id)
-                    ->where('status', OrderStatus::Cancelled)
-                    ->whereNotNull('expires_at')
-                    ->with('server')
-                    ->each(function (Order $order) {
-                        if ($order->server) {
-                            AlertBanner::make('cancellation_warning_' . $order->id)
-                                ->title('Server "' . $order->server->name . '" is scheduled for suspension')
-                                ->body('Your subscription has been cancelled. The server will be suspended on ' . $order->expires_at->format('M j, Y') . '.')
-                                ->status('warning')
-                                ->send();
-                        }
-                    });
-            }
+        if (!$server) {
+            return;
         }
 
-        if ($panelId === 'server') {
-            $server = Filament::getTenant();
+        $order = Order::where('server_id', $server->id)
+            ->where('status', OrderStatus::Cancelled)
+            ->first();
 
-            if ($server) {
-                $order = Order::where('server_id', $server->id)
-                    ->where('status', OrderStatus::Cancelled)
-                    ->first();
-
-                if ($order && $order->expires_at) {
-                    AlertBanner::make('cancellation_warning_server_' . $order->id)
-                        ->title('This server is scheduled for suspension')
-                        ->body('The subscription has been cancelled. This server will be suspended on ' . $order->expires_at->format('M j, Y') . '.')
-                        ->status('warning')
-                        ->send();
-                }
-            }
+        if ($order && $order->expires_at) {
+            AlertBanner::make('cancellation_warning_' . $order->id)
+                ->title('This server is scheduled for suspension')
+                ->body('Your subscription has been cancelled. This server will be suspended on ' . $order->expires_at->format('M j, Y') . '.')
+                ->status('warning')
+                ->send();
         }
     }
 

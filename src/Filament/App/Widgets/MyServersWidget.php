@@ -24,7 +24,7 @@ class MyServersWidget extends Widget
         }
 
         return Order::where('customer_id', $customer->id)
-            ->whereIn('status', [OrderStatus::Active, OrderStatus::GracePeriod])
+            ->whereIn('status', [OrderStatus::Active, OrderStatus::GracePeriod, OrderStatus::Cancelled])
             ->whereNotNull('server_id')
             ->with(['server', 'productPrice.product'])
             ->get()
