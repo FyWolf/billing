@@ -172,7 +172,7 @@ class Order extends Model implements HasLabel
     }
 
     // -------------------------------------------------------------------------
-    // Stripe Checkout (subscription mode)
+    // Stripe Checkout
     // -------------------------------------------------------------------------
 
     public function getCheckoutSession(): Session
@@ -181,6 +181,8 @@ class Order extends Model implements HasLabel
         $stripeClient = app(StripeClient::class);
 
         if (is_null($this->stripe_checkout_id)) {
+            $isSubscription = $this->productPrice->renewable;
+
             $sessionData = [
                 'customer'    => $this->getOrCreateStripeCustomerId(),
                 'success_url' => route('billing.checkout.success') . '?session_id={CHECKOUT_SESSION_ID}',
@@ -191,18 +193,21 @@ class Order extends Model implements HasLabel
                         'quantity' => 1,
                     ],
                 ],
-                'mode'     => 'subscription',
+                'mode'     => $isSubscription ? 'subscription' : 'payment',
                 'metadata' => [
                     'order_id'    => $this->id,
                     'customer_id' => $this->customer_id,
                 ],
-                'subscription_data' => [
+            ];
+
+            if ($isSubscription) {
+                $sessionData['subscription_data'] = [
                     'metadata' => [
                         'order_id'    => $this->id,
                         'customer_id' => $this->customer_id,
                     ],
-                ],
-            ];
+                ];
+            }
 
             if ($this->coupon_id && $this->coupon?->stripe_coupon_id) {
                 $sessionData['discounts'] = [

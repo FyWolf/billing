@@ -81,27 +81,34 @@ class ProductPrice extends Model implements HasLabel
 
         try {
             if (is_null($this->stripe_id)) {
-                $stripePrice = $stripeClient->prices->create([
+                $priceData = [
                     'currency'    => config('billing.currency'),
                     'nickname'    => $this->name,
                     'product'     => $this->product->stripe_id,
                     'unit_amount' => (int) round($this->cost * 100),
-                    'recurring'   => [
+                ];
+
+                if ($this->renewable) {
+                    $priceData['recurring'] = [
                         'interval'       => $this->interval_type->value,
                         'interval_count' => $this->interval_value,
-                    ],
-                ]);
+                    ];
+                }
 
+                $stripePrice = $stripeClient->prices->create($priceData);
                 $this->updateQuietly(['stripe_id' => $stripePrice->id]);
             } else {
                 $stripePrice = $stripeClient->prices->retrieve($this->stripe_id);
 
-                // Stripe prices are immutable — recreate if amount, product, or recurrence changed
+                // Stripe prices are immutable — recreate if amount, product, recurring config, or renewable flag changed
+                $stripeIsRecurring = isset($stripePrice->recurring);
                 $needsRecreate = $stripePrice->product !== $this->product->stripe_id
                     || $stripePrice->unit_amount !== (int) round($this->cost * 100)
-                    || !isset($stripePrice->recurring)
-                    || $stripePrice->recurring->interval !== $this->interval_type->value
-                    || $stripePrice->recurring->interval_count !== $this->interval_value;
+                    || $stripeIsRecurring !== (bool) $this->renewable
+                    || ($this->renewable && (
+                        $stripePrice->recurring->interval !== $this->interval_type->value
+                        || $stripePrice->recurring->interval_count !== $this->interval_value
+                    ));
 
                 if ($needsRecreate) {
                     $this->updateQuietly(['stripe_id' => null]);

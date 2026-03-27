@@ -13,6 +13,7 @@ use Filament\Actions\Action;
 use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Components\View as InlistView;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Section;
@@ -33,56 +34,7 @@ class ProductWidget extends Widget implements HasActions, HasSchemas
 
     public string $couponCode = '';
 
-    /**
-     * Renders the product spec card (CPU, RAM, disk, limits).
-     */
     public function content(Schema $schema): Schema
-    {
-        return $schema
-            ->record($this->product)
-            ->components([
-                Section::make()
-                    ->heading($this->product->getLabel())
-                    ->description($this->product->description)
-                    ->columns(6)
-                    ->schema([
-                        TextEntry::make('cpu')
-                            ->label('CPU')
-                            ->icon('tabler-cpu')
-                            ->formatStateUsing(fn ($state) => $state === 0 ? 'Unlimited' : $state . ' %')
-                            ->columnSpan(2),
-                        TextEntry::make('memory')
-                            ->icon('tabler-database')
-                            ->formatStateUsing(fn ($state) => $state === 0 ? 'Unlimited' : Number::format($state / (config('panel.use_binary_prefix') ? 1024 : 1000), 2, locale: auth()->user()->language) . (config('panel.use_binary_prefix') ? ' GiB' : ' GB'))
-                            ->columnSpan(2),
-                        TextEntry::make('disk')
-                            ->icon('tabler-folder')
-                            ->formatStateUsing(fn ($state) => $state === 0 ? 'Unlimited' : Number::format($state / (config('panel.use_binary_prefix') ? 1024 : 1000), 2, locale: auth()->user()->language) . (config('panel.use_binary_prefix') ? ' GiB' : ' GB'))
-                            ->columnSpan(2),
-                        TextEntry::make('backup_limit')
-                            ->inlineLabel()
-                            ->columnSpan(3)
-                            ->visible(fn ($state) => $state > 0),
-                        TextEntry::make('database_limit')
-                            ->inlineLabel()
-                            ->columnSpan(3)
-                            ->visible(fn ($state) => $state > 0),
-                    ]),
-            ]);
-    }
-
-    /**
-     * Renders the price/order action buttons below the coupon input.
-     */
-    public function priceActions(Schema $schema): Schema
-    {
-        return $schema->components([
-            Actions::make($this->buildPriceActions())
-                ->fullWidth(),
-        ]);
-    }
-
-    private function buildPriceActions(): array
     {
         $actions = [];
 
@@ -190,6 +142,41 @@ class ProductWidget extends Widget implements HasActions, HasSchemas
                 });
         }
 
-        return $actions;
+        return $schema
+            ->record($this->product)
+            ->components([
+                Section::make()
+                    ->heading($this->product->getLabel())
+                    ->description($this->product->description)
+                    ->columns(6)
+                    ->schema([
+                        TextEntry::make('cpu')
+                            ->label('CPU')
+                            ->icon('tabler-cpu')
+                            ->formatStateUsing(fn ($state) => $state === 0 ? 'Unlimited' : $state . ' %')
+                            ->columnSpan(2),
+                        TextEntry::make('memory')
+                            ->icon('tabler-database')
+                            ->formatStateUsing(fn ($state) => $state === 0 ? 'Unlimited' : Number::format($state / (config('panel.use_binary_prefix') ? 1024 : 1000), 2, locale: auth()->user()->language) . (config('panel.use_binary_prefix') ? ' GiB' : ' GB'))
+                            ->columnSpan(2),
+                        TextEntry::make('disk')
+                            ->icon('tabler-folder')
+                            ->formatStateUsing(fn ($state) => $state === 0 ? 'Unlimited' : Number::format($state / (config('panel.use_binary_prefix') ? 1024 : 1000), 2, locale: auth()->user()->language) . (config('panel.use_binary_prefix') ? ' GiB' : ' GB'))
+                            ->columnSpan(2),
+                        TextEntry::make('backup_limit')
+                            ->inlineLabel()
+                            ->columnSpan(3)
+                            ->visible(fn ($state) => $state > 0),
+                        TextEntry::make('database_limit')
+                            ->inlineLabel()
+                            ->columnSpan(3)
+                            ->visible(fn ($state) => $state > 0),
+                        InlistView::make('billing::coupon-input')
+                            ->columnSpanFull(),
+                        Actions::make($actions)
+                            ->columnSpanFull()
+                            ->fullWidth(),
+                    ]),
+            ]);
     }
 }
