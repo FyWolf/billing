@@ -28,7 +28,8 @@
         .totals td { padding: 6px 0; }
         .totals .total-row td { border-top: 2px solid #111; font-weight: bold; font-size: 14px; padding-top: 10px; }
         .footer { margin-top: 50px; text-align: center; color: #888; font-size: 10px; border-top: 1px solid #eee; padding-top: 20px; }
-        .badge { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 10px; font-weight: bold; text-transform: uppercase; }
+        .badge { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 10px; font-weight: bold; text-transform: uppercase; vertical-align: middle; position: relative; top: -1px; }
+        .invoice-status { margin-top: 4px; }
         .badge-paid { background: #dcfce7; color: #166534; }
         .badge-pending { background: #fef9c3; color: #854d0e; }
     </style>
@@ -56,9 +57,9 @@
             <div class="invoice-meta">
                 <strong>#{{ str_pad($order->id, 6, '0', STR_PAD_LEFT) }}</strong><br>
                 Date: {{ $order->created_at->format('F d, Y') }}<br>
-                Status: <span class="badge {{ $order->status->value === 'active' ? 'badge-paid' : 'badge-pending' }}">
+                <span class="invoice-status">Status: <span class="badge {{ $order->status->value === 'active' ? 'badge-paid' : 'badge-pending' }}">
                     {{ $order->status->value === 'active' ? 'PAID' : strtoupper($order->status->getLabel()) }}
-                </span>
+                </span></span>
             </div>
         </div>
     </div>
