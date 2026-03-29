@@ -14,9 +14,12 @@ class EditProfile extends BaseEditProfile
         $tabs = parent::getDefaultTabs();
 
         // Account tab is always the first tab; append billing name fields to it.
+        // getDefaultChildComponents() reads the raw stored array without requiring
+        // the container to be initialized (unlike getChildComponents()).
         $accountTab = $tabs[0];
+        $existing = $accountTab->getDefaultChildComponents();
         $accountTab->schema([
-            ...$accountTab->getChildComponents(),
+            ...(is_array($existing) ? $existing : []),
             Section::make('Billing Profile')
                 ->description('Used on invoices and receipts.')
                 ->columns(2)
