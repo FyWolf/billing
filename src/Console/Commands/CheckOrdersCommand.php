@@ -21,18 +21,10 @@ class CheckOrdersCommand extends Command
         return 0;
     }
 
-    /**
-     * Move Active orders that have hit their expiry into GracePeriod (or expire
-     * them immediately if grace_period_hours is 0), and expire GracePeriod orders
-     * whose grace window has been exhausted.
-     *
-     * Uses cursor() to avoid loading every order into memory at once.
-     */
     private function processExpirations(): void
     {
         $graceHours = (int) config('billing.grace_period_hours', 24);
 
-        // -- Phase 1: Active → GracePeriod (or directly Expired if grace = 0) --
         Order::where('status', OrderStatus::Active->value)
             ->whereNotNull('expires_at')
             ->where('expires_at', '<=', now('UTC'))
@@ -51,7 +43,6 @@ class CheckOrdersCommand extends Command
             return;
         }
 
-        // -- Phase 2: GracePeriod → Expired (grace window exhausted) --
         Order::where('status', OrderStatus::GracePeriod->value)
             ->whereNotNull('expires_at')
             ->where('expires_at', '<=', now('UTC')->subHours($graceHours))
@@ -62,11 +53,7 @@ class CheckOrdersCommand extends Command
             });
     }
 
-    /**
-     * Close Cancelled orders whose billing period has ended.
-     * This is a safety net — Stripe's subscription.deleted webhook should
-     * normally handle this, but the cron catches any missed webhooks.
-     */
+    // Safety net for missed subscription.deleted webhooks
     private function processCancelledOrders(): void
     {
         Order::where('status', OrderStatus::Cancelled->value)
@@ -79,10 +66,6 @@ class CheckOrdersCommand extends Command
             });
     }
 
-    /**
-     * Close Pending orders that have been sitting for more than 2 hours with no
-     * payment attempt. Prevents accumulation of abandoned checkout sessions.
-     */
     private function cleanupStalePendingOrders(): void
     {
         Order::where('status', OrderStatus::Pending->value)

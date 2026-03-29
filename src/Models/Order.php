@@ -82,9 +82,7 @@ class Order extends Model implements HasLabel
         ];
     }
 
-    // -------------------------------------------------------------------------
     // Relationships
-    // -------------------------------------------------------------------------
 
     public function customer(): BelongsTo
     {
@@ -111,9 +109,7 @@ class Order extends Model implements HasLabel
         return $this->belongsTo(Server::class, 'server_id');
     }
 
-    // -------------------------------------------------------------------------
     // Helpers
-    // -------------------------------------------------------------------------
 
     public function getLabel(): string
     {
@@ -122,13 +118,14 @@ class Order extends Model implements HasLabel
 
     /**
      * Generate a unique confirmation token valid for 24 hours.
+     * The raw token is returned to the caller; only a SHA-256 hash is persisted.
      */
     public function generateConfirmationToken(): string
     {
         $token = Str::random(64);
 
         $this->update([
-            'confirmation_token'            => $token,
+            'confirmation_token'            => hash('sha256', $token),
             'confirmation_token_expires_at' => now('UTC')->addHours(24),
         ]);
 
@@ -140,26 +137,18 @@ class Order extends Model implements HasLabel
      */
     public static function findByConfirmationToken(string $token): ?self
     {
-        return static::where('confirmation_token', $token)
+        return static::where('confirmation_token', hash('sha256', $token))
             ->where('confirmation_token_expires_at', '>', now('UTC'))
             ->first();
     }
 
-    /**
-     * Returns the Stripe Checkout URL for this order.
-     */
     public function getPaymentUrl(): string
     {
         return $this->getCheckoutSession()->url;
     }
 
-    // -------------------------------------------------------------------------
-    // Stripe Customer
-    // -------------------------------------------------------------------------
+    // Stripe
 
-    /**
-     * Ensure a Stripe Customer exists for this order's customer and return the ID.
-     */
     private function getOrCreateStripeCustomerId(): string
     {
         $customer = $this->customer;
@@ -182,9 +171,6 @@ class Order extends Model implements HasLabel
         return $stripeCustomer->id;
     }
 
-    // -------------------------------------------------------------------------
-    // Stripe Checkout
-    // -------------------------------------------------------------------------
 
     public function getCheckoutSession(): Session
     {
@@ -254,9 +240,6 @@ class Order extends Model implements HasLabel
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Stripe Subscription management
-    // -------------------------------------------------------------------------
 
     /**
      * Cancel the Stripe Subscription at the end of the current billing period.
@@ -329,17 +312,12 @@ class Order extends Model implements HasLabel
         return $refund->id;
     }
 
-    /**
-     * Find the Stripe PaymentIntent ID for this order.
-     */
     private function resolvePaymentIntentId(StripeClient $stripeClient): string
     {
-        // 1. Stored payment ID
         if ($this->stripe_payment_id) {
             return $this->stripe_payment_id;
         }
 
-        // 2. Subscription → list paid invoices → payment intent
         if ($this->stripe_subscription_id) {
             $invoices = $stripeClient->invoices->all([
                 'subscription' => $this->stripe_subscription_id,
@@ -353,7 +331,6 @@ class Order extends Model implements HasLabel
             }
         }
 
-        // 3. Checkout session → payment intent (one-time payments only)
         if ($this->stripe_checkout_id) {
             $session = $stripeClient->checkout->sessions->retrieve($this->stripe_checkout_id);
 
@@ -365,16 +342,8 @@ class Order extends Model implements HasLabel
         throw new Exception("No payment intent found for Order #{$this->id}");
     }
 
-    // -------------------------------------------------------------------------
     // Order lifecycle
-    // -------------------------------------------------------------------------
 
-    /**
-     * Activate the order after successful payment.
-     *
-     * @param string|null $subscriptionId     Stripe Subscription ID
-     * @param int|null    $currentPeriodEnd   Unix timestamp from Stripe subscription
-     */
     public function activate(?string $subscriptionId, ?int $currentPeriodEnd = null): void
     {
         $expireDate = $currentPeriodEnd
@@ -413,9 +382,6 @@ class Order extends Model implements HasLabel
         $this->sendOrderConfirmationEmail();
     }
 
-    /**
-     * Renew the order after a successful recurring invoice payment.
-     */
     public function renew(int $currentPeriodEnd): void
     {
         $wasGracePeriod = $this->status === OrderStatus::GracePeriod;
@@ -476,9 +442,6 @@ class Order extends Model implements HasLabel
         ], $this);
     }
 
-    /**
-     * Activate as a free trial (no payment required).
-     */
     public function activateTrial(int $trialDays): void
     {
         $this->update([
@@ -495,9 +458,6 @@ class Order extends Model implements HasLabel
         $this->sendOrderConfirmationEmail();
     }
 
-    /**
-     * Close the order (user-initiated cancel or admin action).
-     */
     public function close(): void
     {
         try {
@@ -518,9 +478,6 @@ class Order extends Model implements HasLabel
         AuditLog::record('order_closed', [], $this);
     }
 
-    /**
-     * Move to grace period (called when expires_at is reached or invoice payment fails).
-     */
     public function enterGracePeriod(): void
     {
         $this->update(['status' => OrderStatus::GracePeriod]);
@@ -531,10 +488,6 @@ class Order extends Model implements HasLabel
         ], $this);
     }
 
-    /**
-     * Expire the order after the grace period is exhausted.
-     * Also cancels the Stripe Subscription as a safety measure.
-     */
     public function expire(): void
     {
         try {
@@ -545,7 +498,6 @@ class Order extends Model implements HasLabel
             report($exception);
         }
 
-        // Cancel the Stripe Subscription to stop further billing
         if ($this->stripe_subscription_id) {
             try {
                 /** @var StripeClient $stripeClient */
@@ -565,9 +517,6 @@ class Order extends Model implements HasLabel
         ], $this);
     }
 
-    // -------------------------------------------------------------------------
-    // Email notifications
-    // -------------------------------------------------------------------------
 
     private function sendOrderConfirmationEmail(): void
     {
@@ -581,13 +530,17 @@ class Order extends Model implements HasLabel
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Plan changes (upgrade / downgrade)
-    // -------------------------------------------------------------------------
+    // Plan changes
 
     public function changePlan(ProductPrice $newPrice): void
     {
         $oldPrice = $this->productPrice;
+
+        if ($newPrice->product_id !== $oldPrice->product_id) {
+            throw new \InvalidArgumentException(
+                "Price #{$newPrice->id} does not belong to the same product as the current price."
+            );
+        }
         $direction = $newPrice->cost > $oldPrice->cost ? 'upgrade' : 'downgrade';
 
         if ($this->stripe_subscription_id) {
@@ -648,9 +601,7 @@ class Order extends Model implements HasLabel
         }
     }
 
-    // -------------------------------------------------------------------------
     // Server provisioning
-    // -------------------------------------------------------------------------
 
     public function createServer(): Server
     {

@@ -156,6 +156,14 @@ class Coupon extends Model
             return null;
         }
 
+        // Enforce max_redemptions locally — do not rely solely on Stripe
+        if ($coupon->max_redemptions !== null) {
+            $used = Order::where('coupon_id', $coupon->id)->count();
+            if ($used >= $coupon->max_redemptions) {
+                return null;
+            }
+        }
+
         return $coupon;
     }
 

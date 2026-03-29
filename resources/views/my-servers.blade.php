@@ -17,7 +17,6 @@
                        class="fi-section rounded-lg ring-1 ring-gray-950/5 dark:ring-white/10 bg-gray-50 dark:bg-gray-800"
                        style="display: block; padding: 1rem; text-decoration: none; transition: background 150ms;">
                         <div style="display: flex; align-items: center; gap: 0.75rem;">
-                            {{-- Server icon --}}
                             <div style="width: 2.5rem; height: 2.5rem; display: flex; align-items: center; justify-content: center; border-radius: 0.5rem; flex-shrink: 0;"
                                  class="bg-primary-50 dark:bg-primary-500/10">
                                 <svg style="width: 1.25rem; height: 1.25rem;" class="text-primary-600 dark:text-primary-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -32,7 +31,6 @@
                                     {{ $order->productPrice->product->name }} &middot; {{ $order->productPrice->name }}
                                 </div>
                             </div>
-                            {{-- Arrow --}}
                             <svg style="width: 1rem; height: 1rem; flex-shrink: 0;" class="text-gray-400 dark:text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                                 <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
                             </svg>

@@ -19,7 +19,6 @@ class AuditLogResource extends Resource
 
     protected static ?string $navigationLabel = 'Audit Log';
 
-    // Audit logs are read-only; no create/edit pages
     public static function canCreate(): bool
     {
         return false;

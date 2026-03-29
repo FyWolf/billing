@@ -12,16 +12,7 @@ use Stripe\Event;
 use Stripe\StripeClient;
 
 /**
- * Handles verified Stripe webhook events.
- *
- * Signature verification happens in VerifyStripeWebhookSignature middleware,
- * which attaches the parsed \Stripe\Event to $request->attributes.
- *
- * Required webhook events in Stripe Dashboard:
- * - checkout.session.completed
- * - invoice.paid
- * - invoice.payment_failed
- * - customer.subscription.deleted
+ * Required Stripe webhook events:
  */
 class StripeWebhookController extends Controller
 {
@@ -40,10 +31,6 @@ class StripeWebhookController extends Controller
 
         return response('', 200);
     }
-
-    // -------------------------------------------------------------------------
-    // Event handlers
-    // -------------------------------------------------------------------------
 
     /**
      * Initial checkout completed — activate the order.

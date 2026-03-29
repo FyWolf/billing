@@ -1,7 +1,6 @@
 <x-filament-panels::page>
     <div style="max-width: 42rem; margin: 0 auto;">
         <div style="border-radius: 0.75rem; padding: 2rem; text-align: center;" class="bg-white dark:bg-gray-800 fi-section rounded-xl ring-1 ring-gray-950/5 dark:ring-white/10">
-            {{-- Success icon --}}
             <div style="width: 4rem; height: 4rem; margin: 0 auto 1.5rem; display: flex; align-items: center; justify-content: center; border-radius: 9999px; background: rgb(220 252 231);">
                 <svg style="width: 2.5rem; height: 2.5rem; color: rgb(22 163 74);" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
@@ -18,7 +17,6 @@
                 A confirmation email with your invoice has been sent to your email address.
             </p>
 
-            {{-- Order details --}}
             <div style="border-radius: 0.5rem; padding: 1.5rem; margin-bottom: 2rem; text-align: left;" class="bg-white dark:bg-gray-900">
                 <h3 style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem;" class="text-gray-950 dark:text-white">
                     Order Summary
@@ -73,7 +71,6 @@
                 </dl>
             </div>
 
-            {{-- Actions --}}
             <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
                 @if($order->server)
                     <a href="{{ \App\Filament\Server\Pages\Console::getUrl(panel: 'server', tenant: $order->server) }}"

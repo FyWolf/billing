@@ -35,7 +35,6 @@
 </head>
 <body>
 <div class="container">
-    {{-- Header --}}
     <div class="header">
         <div class="header-left">
             @if(!empty($company['name']))
@@ -66,7 +65,6 @@
 
     <div class="divider"></div>
 
-    {{-- Bill To --}}
     <div class="addresses">
         <div class="address-block">
             <div class="address-label">Bill To</div>
@@ -89,7 +87,6 @@
         </div>
     </div>
 
-    {{-- Line Items --}}
     <table class="items">
         <thead>
             <tr>
@@ -113,7 +110,6 @@
         </tbody>
     </table>
 
-    {{-- Totals --}}
     <div class="totals">
         <table>
             <tr>
@@ -127,7 +123,6 @@
         </table>
     </div>
 
-    {{-- Footer --}}
     <div class="footer">
         @if(!empty($company['name']))
             {{ $company['name'] }}

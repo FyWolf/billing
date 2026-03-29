@@ -66,9 +66,6 @@ class BillingPlugin implements HasPluginSettings, Plugin
     public function getSettingsForm(): array
     {
         return [
-            // ------------------------------------------------------------------
-            // General
-            // ------------------------------------------------------------------
             Select::make('currency')
                 ->label('Currency')
                 ->required()
@@ -92,9 +89,6 @@ class BillingPlugin implements HasPluginSettings, Plugin
             TagsInput::make('deployment_tags')
                 ->label('Default Node Tags for Deployment'),
 
-            // ------------------------------------------------------------------
-            // Company Information (for invoices)
-            // ------------------------------------------------------------------
             Fieldset::make('Company Information')
                 ->schema([
                     TextInput::make('company_name')
@@ -145,9 +139,6 @@ class BillingPlugin implements HasPluginSettings, Plugin
                         ->placeholder('https://example.com'),
                 ]),
 
-            // ------------------------------------------------------------------
-            // Stripe
-            // ------------------------------------------------------------------
             Fieldset::make('Stripe')
                 ->schema([
                     TextInput::make('stripe_key')
@@ -191,7 +182,6 @@ class BillingPlugin implements HasPluginSettings, Plugin
             'BILLING_DEPLOYMENT_TAGS'    => implode(',', $data['deployment_tags'] ?? []),
         ];
 
-        // Company
         $env['BILLING_COMPANY_NAME']    = $data['company_name'] ?? '';
         $env['BILLING_COMPANY_ADDRESS'] = $data['company_address'] ?? '';
         $env['BILLING_COMPANY_CITY']    = $data['company_city'] ?? '';
@@ -202,7 +192,6 @@ class BillingPlugin implements HasPluginSettings, Plugin
         $env['BILLING_COMPANY_VAT']     = $data['company_vat'] ?? '';
         $env['BILLING_COMPANY_WEBSITE'] = $data['company_website'] ?? '';
 
-        // Stripe
         if (!empty($data['stripe_key']))            $env['STRIPE_KEY']            = $data['stripe_key'];
         if (!empty($data['stripe_secret']))         $env['STRIPE_SECRET']         = $data['stripe_secret'];
         if (!empty($data['stripe_webhook_secret'])) $env['STRIPE_WEBHOOK_SECRET'] = $data['stripe_webhook_secret'];

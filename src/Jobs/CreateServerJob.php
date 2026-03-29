@@ -17,22 +17,11 @@ class CreateServerJob implements ShouldQueue
     use Queueable;
     use SerializesModels;
 
-    /**
-     * The display name of the job (helps identify it in queue monitoring).
-     */
     public string $displayName = 'billing:create-server';
 
-    /**
-     * Number of attempts before the job is considered failed.
-     * Each retry waits for the backoff period below.
-     */
     public int $tries = 3;
 
-    /**
-     * Seconds to wait before each retry: 60s, then 120s, then 300s.
-     *
-     * @return array<int>
-     */
+    /** @return array<int> */
     public function backoff(): array
     {
         return [60, 120, 300];
@@ -59,9 +48,6 @@ class CreateServerJob implements ShouldQueue
         $order->createServer();
     }
 
-    /**
-     * Called when all retry attempts have been exhausted.
-     */
     public function failed(Throwable $exception): void
     {
         $order = Order::find($this->orderId);
@@ -79,8 +65,6 @@ class CreateServerJob implements ShouldQueue
     private function notifyAdmins(string $errorMessage): void
     {
         try {
-            // Filament's database notifications target admin users.
-            // We broadcast to the admin channel so any online admin sees it.
             Notification::make()
                 ->title('Server Creation Failed')
                 ->body("Order #{$this->orderId} — {$errorMessage}")

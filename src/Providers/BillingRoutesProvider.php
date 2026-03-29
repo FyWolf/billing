@@ -14,11 +14,6 @@ class BillingRoutesProvider extends RouteServiceProvider
     public function boot(): void
     {
         $this->routes(function () {
-
-            // ------------------------------------------------------------------
-            // Stripe redirect callbacks (require auth — user must be logged in)
-            // Rate-limited: 20 attempts per minute per user to prevent abuse
-            // ------------------------------------------------------------------
             Route::prefix('checkout')
                 ->middleware(['web', 'auth', 'throttle:20,1'])
                 ->group(function () {
@@ -28,19 +23,12 @@ class BillingRoutesProvider extends RouteServiceProvider
                         ->name('billing.checkout.cancel');
                 });
 
-            // ------------------------------------------------------------------
-            // Public catalog API — uses Pelican's built-in API key system
-            // Requires a valid Application API key (created in admin panel)
-            // ------------------------------------------------------------------
             Route::get('/api/application/billing/catalog', CatalogController::class)
                 ->name('billing.api.catalog')
                 ->middleware(['auth:sanctum', 'throttle:60,1'])
                 ->withoutMiddleware(['web', 'auth', 'verify-csrf-token', 'App\Http\Middleware\VerifyCsrfToken']);
 
-            // ------------------------------------------------------------------
-            // Stripe webhook — no auth, but HMAC signature is verified via
-            // middleware before the controller processes the event
-            // ------------------------------------------------------------------
+            // Webhook has no auth — HMAC signature verified in middleware before the controller runs
             Route::post('/webhooks/stripe', [StripeWebhookController::class, 'handle'])
                 ->name('billing.webhooks.stripe')
                 ->middleware(VerifyStripeWebhookSignature::class)

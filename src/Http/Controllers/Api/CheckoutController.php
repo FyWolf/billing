@@ -35,7 +35,6 @@ class CheckoutController extends Controller
             return redirect(ListOrders::getUrl(panel: 'app'));
         }
 
-        // Ownership check: this session must belong to the currently authenticated user
         $customer = Customer::where('user_id', auth()->id())->first();
 
         if (!$customer) {
@@ -44,20 +43,19 @@ class CheckoutController extends Controller
 
         /** @var ?Order $order */
         $order = Order::where('stripe_checkout_id', $session->id)
-            ->where('customer_id', $customer->id) // ensures caller owns this session
+            ->where('customer_id', $customer->id)
             ->first();
 
         if (!$order) {
             return redirect(ListOrders::getUrl(panel: 'app'));
         }
 
-        // Idempotent: if the webhook already activated the order, just redirect
+        // If the webhook already activated the order, just redirect without re-activating
         if ($order->status === OrderStatus::Active) {
             $token = $order->generateConfirmationToken();
             return redirect(OrderComplete::getUrl(['token' => $token], panel: 'app'));
         }
 
-        // Retrieve subscription period end for expiration date
         $currentPeriodEnd = null;
         if ($session->subscription) {
             try {
@@ -87,9 +85,13 @@ class CheckoutController extends Controller
         if ($sessionId) {
             $customer = Customer::where('user_id', auth()->id())->first();
 
+            if (!$customer) {
+                return redirect(ListOrders::getUrl(panel: 'app'));
+            }
+
             /** @var ?Order $order */
             $order = Order::where('stripe_checkout_id', $sessionId)
-                ->where('customer_id', $customer?->id)
+                ->where('customer_id', $customer->id)
                 ->first();
 
             if ($order) {

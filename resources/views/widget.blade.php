@@ -1,6 +1,5 @@
 <x-filament::section :heading="$this->product->getLabel()" :description="$this->product->description ?? null">
 
-    {{-- Product image --}}
     @if($this->product->image)
         <img
             src="{{ \Illuminate\Support\Facades\Storage::url($this->product->image) }}"
@@ -9,10 +8,8 @@
         />
     @endif
 
-    {{-- Spec entries (CPU, RAM, disk) --}}
     {{ $this->content }}
 
-    {{-- Coupon code --}}
     <div style="margin-top: 1rem;">
         <x-filament::input.wrapper label="Coupon Code">
             <x-filament::input
@@ -23,7 +20,6 @@
         </x-filament::input.wrapper>
     </div>
 
-    {{-- Order buttons --}}
     <div style="margin-top: 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem;">
         @foreach($this->product->prices as $price)
             <x-filament::button

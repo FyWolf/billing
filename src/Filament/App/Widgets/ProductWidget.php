@@ -81,9 +81,7 @@ class ProductWidget extends Widget implements HasSchemas
             ]
         );
 
-        // ------------------------------------------------------------------
-        // Free tier — activate immediately
-        // ------------------------------------------------------------------
+        // Free tier
         if ($price->isFree()) {
             /** @var Order $order */
             $order = Order::create([
@@ -99,9 +97,7 @@ class ProductWidget extends Widget implements HasSchemas
             return;
         }
 
-        // ------------------------------------------------------------------
-        // First-time trial
-        // ------------------------------------------------------------------
+        // Trial
         if ($price->hasTrial()) {
             $hasUsedTrial = Order::where('customer_id', $customer->id)
                 ->where('product_price_id', $price->id)
@@ -123,9 +119,7 @@ class ProductWidget extends Widget implements HasSchemas
             }
         }
 
-        // ------------------------------------------------------------------
-        // Paid — Stripe checkout
-        // ------------------------------------------------------------------
+        // Stripe checkout
         $price->sync();
 
         $couponId = null;
