@@ -34,6 +34,8 @@ class BillingPlugin implements HasPluginSettings, Plugin
         if ($panel->getId() === 'app') {
             ServerResource::embedServerList();
 
+            $panel->profile(\Fywolf\Billing\Filament\App\Pages\EditProfile::class, false);
+
             $panel->navigation(true);
             $panel->topbar(function () {
                 $navigationType = user()?->getCustomization(CustomizationKey::TopNavigation);

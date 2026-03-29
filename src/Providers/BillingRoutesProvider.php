@@ -4,6 +4,7 @@ namespace Fywolf\Billing\Providers;
 
 use Fywolf\Billing\Http\Controllers\Api\CatalogController;
 use Fywolf\Billing\Http\Controllers\Api\CheckoutController;
+use Fywolf\Billing\Http\Controllers\Api\InvoiceController;
 use Fywolf\Billing\Http\Controllers\Api\StripeWebhookController;
 use Fywolf\Billing\Http\Middleware\VerifyStripeWebhookSignature;
 use Illuminate\Foundation\Support\Providers\RouteServiceProvider;
@@ -21,6 +22,15 @@ class BillingRoutesProvider extends RouteServiceProvider
                         ->name('billing.checkout.success');
                     Route::get('/cancel', [CheckoutController::class, 'cancel'])
                         ->name('billing.checkout.cancel');
+                });
+
+            Route::prefix('invoices')
+                ->middleware(['web', 'auth', 'throttle:30,1'])
+                ->group(function () {
+                    Route::get('/{order}', [InvoiceController::class, 'download'])
+                        ->name('billing.invoices.user');
+                    Route::get('/admin/{order}', [InvoiceController::class, 'adminDownload'])
+                        ->name('billing.invoices.admin');
                 });
 
             Route::get('/api/application/billing/catalog', CatalogController::class)

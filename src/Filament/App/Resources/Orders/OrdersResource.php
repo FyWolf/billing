@@ -87,6 +87,13 @@ class OrdersResource extends Resource
                     ->since(),
             ])
             ->recordActions([
+                Action::make('invoice')
+                    ->label('Invoice')
+                    ->icon('tabler-file-invoice')
+                    ->color('gray')
+                    ->visible(fn () => class_exists(\Barryvdh\DomPDF\ServiceProvider::class))
+                    ->url(fn (Order $order) => route('billing.invoices.user', $order))
+                    ->openUrlInNewTab(),
                 ViewAction::make()
                     ->hidden(fn (Order $order) => !$order->server)
                     ->url(fn (Order $order) => Console::getUrl(panel: 'server', tenant: $order->server)),

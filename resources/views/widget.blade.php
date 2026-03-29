@@ -8,7 +8,24 @@
         />
     @endif
 
-    {{ $this->content }}
+    @php
+        $specs = array_filter([
+            $this->product->cores ? ($this->product->cores . ($this->product->cores === 1 ? ' Core' : ' Cores')) : null,
+            $this->product->memory ? ($this->formatSize($this->product->memory) . ' RAM') : null,
+            $this->product->disk   ? ($this->formatSize($this->product->disk)   . ' Disk') : null,
+            $this->product->backup_limit   ? ($this->product->backup_limit   . ' Backups')   : null,
+            $this->product->database_limit ? ($this->product->database_limit . ' Databases') : null,
+        ]);
+    @endphp
+    @if($specs)
+        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem;">
+            @foreach($specs as $spec)
+                <span style="font-size: 0.8rem; padding: 0.2rem 0.6rem; border-radius: 999px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: inherit;">
+                    {{ $spec }}
+                </span>
+            @endforeach
+        </div>
+    @endif
 
     <div style="margin-top: 1rem;">
         <div style="display: flex; gap: 0.5rem; align-items: flex-end;">

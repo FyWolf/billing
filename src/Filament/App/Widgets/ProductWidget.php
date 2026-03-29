@@ -9,18 +9,11 @@ use Fywolf\Billing\Models\Coupon;
 use Fywolf\Billing\Models\Customer;
 use Fywolf\Billing\Models\Order;
 use Fywolf\Billing\Models\Product;
-use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
-use Filament\Schemas\Concerns\InteractsWithSchemas;
-use Filament\Schemas\Contracts\HasSchemas;
-use Filament\Schemas\Schema;
 use Filament\Widgets\Widget;
-use Illuminate\Support\Number;
 
-class ProductWidget extends Widget implements HasSchemas
+class ProductWidget extends Widget
 {
-    use InteractsWithSchemas;
-
     protected string $view = 'billing::widget'; // @phpstan-ignore property.defaultValue
 
     public ?Product $product = null;
@@ -68,35 +61,17 @@ class ProductWidget extends Widget implements HasSchemas
         ];
     }
 
-    /**
-    public function content(Schema $schema): Schema
+    public function formatSize(int $mb): string
     {
-        return $schema
-            ->record($this->product)
-            ->columns(6)
-            ->components([
-                TextEntry::make('cores')
-                    ->label('CPU')
-                    ->icon('tabler-cpu')
-                    ->formatStateUsing(fn ($state) => $state . ($state === 1 ? ' Core' : ' Cores'))
-                    ->columnSpan(2),
-                TextEntry::make('memory')
-                    ->icon('tabler-database')
-                    ->formatStateUsing(fn ($state) => $state === 0 ? 'Unlimited' : Number::format($state / (config('panel.use_binary_prefix') ? 1024 : 1000), 2, locale: auth()->user()->language) . (config('panel.use_binary_prefix') ? ' GiB' : ' GB'))
-                    ->columnSpan(2),
-                TextEntry::make('disk')
-                    ->icon('tabler-folder')
-                    ->formatStateUsing(fn ($state) => $state === 0 ? 'Unlimited' : Number::format($state / (config('panel.use_binary_prefix') ? 1024 : 1000), 2, locale: auth()->user()->language) . (config('panel.use_binary_prefix') ? ' GiB' : ' GB'))
-                    ->columnSpan(2),
-                TextEntry::make('backup_limit')
-                    ->inlineLabel()
-                    ->columnSpan(3)
-                    ->visible(fn ($state) => $state > 0),
-                TextEntry::make('database_limit')
-                    ->inlineLabel()
-                    ->columnSpan(3)
-                    ->visible(fn ($state) => $state > 0),
-            ]);
+        if ($mb === 0) {
+            return 'Unlimited';
+        }
+
+        $binary = (bool) config('panel.use_binary_prefix');
+        $value  = $mb / ($binary ? 1024 : 1000);
+        $unit   = $binary ? 'GiB' : 'GB';
+
+        return number_format($value, $mb % ($binary ? 1024 : 1000) === 0 ? 0 : 1) . ' ' . $unit;
     }
 
     /**
