@@ -5,9 +5,11 @@ namespace Fywolf\Billing\Filament\Admin\Resources\Coupons;
 use App\Filament\Components\Tables\Columns\DateTimeColumn;
 use Fywolf\Billing\Enums\CouponType;
 use Fywolf\Billing\Filament\Admin\Resources\Coupons\Pages\CreateCoupon;
+use Fywolf\Billing\Filament\Admin\Resources\Coupons\Pages\CouponStatsPage;
 use Fywolf\Billing\Filament\Admin\Resources\Coupons\Pages\EditCoupon;
 use Fywolf\Billing\Filament\Admin\Resources\Coupons\Pages\ListCoupons;
 use Fywolf\Billing\Models\Coupon;
+use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -101,6 +103,11 @@ class CouponResource extends Resource
                     ->since(),
             ])
             ->recordActions([
+                Action::make('stats')
+                    ->label('Stats')
+                    ->icon('tabler-chart-bar')
+                    ->color('info')
+                    ->url(fn (Coupon $coupon) => CouponResource::getUrl('stats', ['record' => $coupon])),
                 EditAction::make(),
                 DeleteAction::make(),
             ])
@@ -115,9 +122,10 @@ class CouponResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => ListCoupons::route('/'),
+            'index'  => ListCoupons::route('/'),
             'create' => CreateCoupon::route('/create'),
-            'edit' => EditCoupon::route('/{record}/edit'),
+            'edit'   => EditCoupon::route('/{record}/edit'),
+            'stats'  => CouponStatsPage::route('/{record}/stats'),
         ];
     }
 }
