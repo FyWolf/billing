@@ -68,14 +68,13 @@ class ProductResource extends Resource
                             ->searchable()
                             ->preload()
                             ->columnSpanFull(),
-                        TextInput::make('cpu')
+                        TextInput::make('cores')
                             ->prefixIcon('tabler-cpu')
-                            ->label('CPU')
+                            ->label('CPU Cores')
                             ->required()
-                            ->suffix('%')
                             ->numeric()
-                            ->minValue(0)
-                            ->hint('Set to 0 for unlimited.'),
+                            ->minValue(1)
+                            ->default(1),
                         TextInput::make('memory')
                             ->prefixIcon('tabler-database')
                             ->required()
@@ -165,10 +164,10 @@ class ProductResource extends Resource
                     ->sortable()
                     ->icon('tabler-egg')
                     ->url(fn (Product $product): string => route('filament.admin.resources.eggs.edit', ['record' => $product->egg])),
-                TextColumn::make('cpu')
-                    ->label('CPU')
+                TextColumn::make('cores')
+                    ->label('Cores')
                     ->numeric()
-                    ->formatStateUsing(fn ($state) => $state === 0 ? 'Unlimited' : $state . ' %'),
+                    ->formatStateUsing(fn ($state) => $state . ($state === 1 ? ' core' : ' cores')),
                 TextColumn::make('memory')
                     ->numeric()
                     ->formatStateUsing(fn ($state) => $state === 0 ? 'Unlimited' : Number::format($state / (config('panel.use_binary_prefix') ? 1024 : 1000), 2, locale: auth()->user()->language) . (config('panel.use_binary_prefix') ? ' GiB' : ' GB')),

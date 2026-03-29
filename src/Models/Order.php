@@ -628,7 +628,7 @@ class Order extends Model implements HasLabel
             'name'             => $this->getLabel() . ' (' . $product->getLabel() . ')',
             'owner_id'         => $this->customer->user->id,
             'egg_id'           => $product->egg->id,
-            'cpu'              => $product->cpu,
+            'cpu'              => $product->cores * 100,
             'memory'           => $product->memory,
             'disk'             => $product->disk,
             'swap'             => $product->swap,
@@ -643,12 +643,8 @@ class Order extends Model implements HasLabel
         ];
 
         if (!empty($product->node_ids)) {
-            $allocationQuery = Allocation::query()
-                ->whereIn('node_id', $product->node_ids)
-                ->whereNull('server_id');
-
+            $ports = [];
             if (!empty($product->ports)) {
-                $ports = [];
                 foreach ($product->ports as $portRange) {
                     if (str_contains((string) $portRange, '-')) {
                         [$start, $end] = explode('-', $portRange, 2);
@@ -657,6 +653,39 @@ class Order extends Model implements HasLabel
                         $ports[] = (int) $portRange;
                     }
                 }
+            }
+
+            // Find candidate nodes that have at least one free allocation
+            $candidateNodeIds = Allocation::query()
+                ->whereIn('node_id', $product->node_ids)
+                ->whereNull('server_id')
+                ->when(!empty($ports), fn ($q) => $q->whereIn('port', $ports))
+                ->distinct()
+                ->pluck('node_id');
+
+            if ($candidateNodeIds->isEmpty()) {
+                throw new \RuntimeException(
+                    'No available allocations on the configured nodes'
+                    . (!empty($ports) ? ' matching ports: ' . implode(', ', $product->ports) : '')
+                    . '.'
+                );
+            }
+
+            // Pick the node with the fewest total allocated cores
+            $usedCores = Server::whereIn('node_id', $candidateNodeIds)
+                ->selectRaw('node_id, SUM(cpu) / 100.0 as used_cores')
+                ->groupBy('node_id')
+                ->pluck('used_cores', 'node_id');
+
+            $bestNodeId = $candidateNodeIds
+                ->sortBy(fn ($nodeId) => $usedCores->get($nodeId, 0))
+                ->first();
+
+            $allocationQuery = Allocation::query()
+                ->where('node_id', $bestNodeId)
+                ->whereNull('server_id');
+
+            if (!empty($ports)) {
                 $allocationQuery->whereIn('port', $ports);
             }
 
@@ -664,8 +693,8 @@ class Order extends Model implements HasLabel
 
             if (!$allocation) {
                 throw new \RuntimeException(
-                    'No available allocations on the configured nodes'
-                    . (!empty($product->ports) ? ' matching ports: ' . implode(', ', $product->ports) : '')
+                    'No available allocations on the selected node'
+                    . (!empty($ports) ? ' matching ports: ' . implode(', ', $product->ports) : '')
                     . '.'
                 );
             }

@@ -19,7 +19,7 @@ use Stripe\StripeClient;
  * @property ?string $image
  * @property ?string $category
  * @property int $sort_order
- * @property int $cpu
+ * @property int $cores
  * @property int $memory
  * @property int $disk
  * @property int $swap
@@ -46,7 +46,7 @@ class Product extends Model implements HasLabel
         'category',
         'sort_order',
         'egg_id',
-        'cpu',
+        'cores',
         'memory',
         'disk',
         'swap',

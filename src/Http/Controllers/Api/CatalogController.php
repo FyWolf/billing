@@ -25,7 +25,7 @@ class CatalogController extends Controller
                     'name'        => $product->name,
                     'description' => $product->description,
                     'image'       => $product->image,
-                    'cpu'         => $product->cpu,
+                    'cores'       => $product->cores,
                     'memory'      => $product->memory,
                     'disk'        => $product->disk,
                     'backup_limit' => $product->backup_limit,

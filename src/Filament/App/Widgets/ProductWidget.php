@@ -37,10 +37,10 @@ class ProductWidget extends Widget implements HasSchemas
             ->record($this->product)
             ->columns(6)
             ->components([
-                TextEntry::make('cpu')
+                TextEntry::make('cores')
                     ->label('CPU')
                     ->icon('tabler-cpu')
-                    ->formatStateUsing(fn ($state) => $state === 0 ? 'Unlimited' : $state . ' %')
+                    ->formatStateUsing(fn ($state) => $state . ($state === 1 ? ' Core' : ' Cores'))
                     ->columnSpan(2),
                 TextEntry::make('memory')
                     ->icon('tabler-database')
