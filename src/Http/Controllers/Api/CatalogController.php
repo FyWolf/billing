@@ -11,9 +11,11 @@ class CatalogController extends Controller
     public function __invoke(): JsonResponse
     {
         $products = Product::with('prices')
+            ->where('is_enabled', true)
             ->orderBy('sort_order')
             ->orderBy('name')
-            ->get();
+            ->get()
+            ->filter(fn (Product $p) => $p->prices->isNotEmpty());
 
         $grouped = $products->groupBy(fn (Product $p) => $p->category ?? 'Other');
 
@@ -21,15 +23,16 @@ class CatalogController extends Controller
             return [
                 'name'     => $category,
                 'products' => $products->map(fn (Product $product) => [
-                    'id'          => $product->id,
-                    'name'        => $product->name,
-                    'description' => $product->description,
-                    'image'       => $product->image,
-                    'cores'       => $product->cores,
-                    'memory'      => $product->memory,
-                    'disk'        => $product->disk,
-                    'backup_limit' => $product->backup_limit,
-                    'prices'      => $product->prices->map(fn ($price) => [
+                    'id'             => $product->id,
+                    'name'           => $product->name,
+                    'description'    => $product->description,
+                    'image'          => $product->image,
+                    'cores'          => $product->cores,
+                    'memory'         => $product->memory,
+                    'disk'           => $product->disk,
+                    'backup_limit'   => $product->backup_limit,
+                    'stock_available' => $product->availableStock(),
+                    'prices'         => $product->prices->map(fn ($price) => [
                         'id'             => $price->id,
                         'name'           => $price->name,
                         'cost'           => $price->cost,

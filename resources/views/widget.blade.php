@@ -65,16 +65,37 @@
         @endif
     </div>
 
-    <div style="margin-top: 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem;">
-        @foreach($this->product->prices as $price)
-            <x-filament::button
-                wire:click="placeOrder({{ $price->id }})"
-                wire:loading.attr="disabled"
-                wire:target="placeOrder({{ $price->id }})"
-            >
-                {{ $price->getLabel() }}{{ $price->hasTrial() ? ' (' . $price->trial_days . '-day free trial)' : '' }}
-            </x-filament::button>
-        @endforeach
-    </div>
+    @php
+        $stockAvailable = $this->product->availableStock();
+        $isAvailable    = $this->product->is_enabled && ($stockAvailable === null || $stockAvailable > 0);
+    @endphp
+
+    @if(!$this->product->is_enabled)
+        <p style="margin-top: 1rem; font-size: 0.85rem; color: rgb(156 163 175);">
+            This product is currently unavailable.
+        </p>
+    @elseif($stockAvailable !== null && $stockAvailable <= 0)
+        <p style="margin-top: 1rem; font-size: 0.85rem; color: rgb(239 68 68);">
+            Out of stock
+        </p>
+    @else
+        @if($stockAvailable !== null)
+            <p style="margin-top: 0.75rem; font-size: 0.8rem; color: rgb(156 163 175);">
+                {{ $stockAvailable }} slot{{ $stockAvailable === 1 ? '' : 's' }} remaining
+            </p>
+        @endif
+
+        <div style="margin-top: 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem;">
+            @foreach($this->product->prices as $price)
+                <x-filament::button
+                    wire:click="placeOrder({{ $price->id }})"
+                    wire:loading.attr="disabled"
+                    wire:target="placeOrder({{ $price->id }})"
+                >
+                    {{ $price->getLabel() }}{{ $price->hasTrial() ? ' (' . $price->trial_days . '-day free trial)' : '' }}
+                </x-filament::button>
+            @endforeach
+        </div>
+    @endif
 
 </x-filament::section>

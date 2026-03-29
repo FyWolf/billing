@@ -7,203 +7,166 @@
             : null;
     @endphp
 
-    {{-- ── Coupon identity badge ──────────────────────────────────────────── --}}
-    <div class="flex flex-wrap items-center gap-3 -mt-2 mb-2">
-        <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300 ring-1 ring-primary-200 dark:ring-primary-700">
-            <x-filament::icon icon="tabler-receipt-tax" class="w-3.5 h-3.5"/>
-            {{ $coupon->code }}
-        </span>
-        @if($coupon->amount_off)
-            <span class="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold bg-success-100 text-success-700 dark:bg-success-900/40 dark:text-success-300 ring-1 ring-success-200 dark:ring-success-700">
-                {{ $fmt->formatCurrency($coupon->amount_off, $this->currency) }} off
+    {{-- ── Coupon identity + KPIs in one compact section ─────────────────── --}}
+    <x-filament::section>
+        {{-- Pills row --}}
+        <div class="flex flex-wrap items-center gap-2 mb-4 pb-4 border-b border-gray-100 dark:border-white/10">
+            <span class="rounded-md bg-gray-100 dark:bg-white/10 px-2.5 py-1 text-xs font-mono font-semibold text-gray-700 dark:text-gray-200">
+                {{ $coupon->code }}
             </span>
-        @elseif($coupon->percent_off)
-            <span class="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold bg-success-100 text-success-700 dark:bg-success-900/40 dark:text-success-300 ring-1 ring-success-200 dark:ring-success-700">
-                {{ $coupon->percent_off }}% off
-            </span>
-        @endif
-        @if($coupon->redeem_by)
-            <span class="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold bg-warning-100 text-warning-700 dark:bg-warning-900/40 dark:text-warning-300 ring-1 ring-warning-200 dark:ring-warning-700">
-                <x-filament::icon icon="tabler-clock" class="w-3.5 h-3.5"/>
-                Expires {{ $coupon->redeem_by->format('M j, Y') }}
-            </span>
-        @endif
-    </div>
+            @if($coupon->amount_off)
+                <span class="rounded-md bg-green-50 dark:bg-green-900/30 px-2.5 py-1 text-xs font-semibold text-green-700 dark:text-green-300">
+                    {{ $fmt->formatCurrency($coupon->amount_off, $this->currency) }} off
+                </span>
+            @elseif($coupon->percent_off)
+                <span class="rounded-md bg-green-50 dark:bg-green-900/30 px-2.5 py-1 text-xs font-semibold text-green-700 dark:text-green-300">
+                    {{ $coupon->percent_off }}% off
+                </span>
+            @endif
+            @if($coupon->redeem_by)
+                <span class="rounded-md bg-amber-50 dark:bg-amber-900/30 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                    Expires {{ $coupon->redeem_by->format('M j, Y') }}
+                </span>
+            @endif
+            @if($this->maxRedemptions > 0 && $pct !== null)
+                <span class="rounded-md {{ $pct >= 90 ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300' : 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300' }} px-2.5 py-1 text-xs font-semibold">
+                    {{ $pct }}% redeemed
+                </span>
+            @endif
+        </div>
 
-    {{-- ── KPI Cards ──────────────────────────────────────────────────────── --}}
-    <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4">
+        {{-- KPI stat strip --}}
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-6 gap-y-4">
+            @php
+                $kpis = [
+                    ['label' => 'Total Uses',     'value' => number_format($this->totalUses),                                             'sub' => null],
+                    ['label' => 'Revenue Saved',  'value' => $fmt->formatCurrency($this->revenueSaved, $this->currency),                  'sub' => null],
+                    ['label' => 'This Month',     'value' => number_format($this->usesThisMonth),                                         'sub' => null],
+                    ['label' => 'Avg Discount',   'value' => $fmt->formatCurrency($this->avgDiscount, $this->currency),                   'sub' => 'per order'],
+                    ['label' => $this->maxRedemptions > 0 ? 'Remaining Uses' : 'Redemption Cap',
+                     'value' => $this->remaining !== null ? number_format($this->remaining) : '∞',
+                     'sub'   => $this->maxRedemptions > 0 ? 'of ' . number_format($this->maxRedemptions) : 'no limit'],
+                ];
+            @endphp
+            @foreach($kpis as $kpi)
+                <div>
+                    <div class="text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-0.5">
+                        {{ $kpi['label'] }}
+                    </div>
+                    <div class="text-xl font-bold text-gray-900 dark:text-white leading-tight">
+                        {{ $kpi['value'] }}
+                    </div>
+                    @if($kpi['sub'])
+                        <div class="text-xs text-gray-400 mt-0.5">{{ $kpi['sub'] }}</div>
+                    @endif
+                </div>
+            @endforeach
+        </div>
 
-        @php
-            $kpis = [
-                [
-                    'label' => 'Total Uses',
-                    'value' => number_format($this->totalUses),
-                    'icon'  => 'tabler-ticket',
-                    'color' => 'text-primary-600 dark:text-primary-400',
-                    'bg'    => 'bg-primary-50 dark:bg-primary-900/30',
-                ],
-                [
-                    'label' => 'Revenue Saved',
-                    'value' => $fmt->formatCurrency($this->revenueSaved, $this->currency),
-                    'icon'  => 'tabler-cash-banknote',
-                    'color' => 'text-success-600 dark:text-success-400',
-                    'bg'    => 'bg-success-50 dark:bg-success-900/30',
-                ],
-                [
-                    'label' => 'This Month',
-                    'value' => number_format($this->usesThisMonth),
-                    'icon'  => 'tabler-calendar-stats',
-                    'color' => 'text-info-600 dark:text-info-400',
-                    'bg'    => 'bg-info-50 dark:bg-info-900/30',
-                ],
-                [
-                    'label' => $this->maxRedemptions > 0 ? 'Remaining' : 'No Limit',
-                    'value' => $this->remaining !== null ? number_format($this->remaining) : '∞',
-                    'icon'  => 'tabler-percentage',
-                    'color' => 'text-warning-600 dark:text-warning-400',
-                    'bg'    => 'bg-warning-50 dark:bg-warning-900/30',
-                ],
-                [
-                    'label' => 'Avg Discount',
-                    'value' => $fmt->formatCurrency($this->avgDiscount, $this->currency),
-                    'icon'  => 'tabler-arrow-badge-down',
-                    'color' => 'text-danger-600 dark:text-danger-400',
-                    'bg'    => 'bg-danger-50 dark:bg-danger-900/30',
-                ],
-            ];
-        @endphp
-
-        @foreach($kpis as $kpi)
-            <div class="rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-gray-900 shadow-sm p-5 flex flex-col gap-3">
-                <div class="flex items-center justify-between">
-                    <span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ $kpi['label'] }}</span>
-                    <span class="rounded-lg p-1.5 {{ $kpi['bg'] }}">
-                        <x-filament::icon :icon="$kpi['icon']" class="w-4 h-4 {{ $kpi['color'] }}"/>
+        {{-- Redemption progress bar --}}
+        @if($this->maxRedemptions > 0)
+            <div class="mt-4 pt-4 border-t border-gray-100 dark:border-white/10">
+                <div class="flex items-center gap-3">
+                    <div class="flex-1 h-2 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700">
+                        <div
+                            class="h-2 rounded-full {{ $pct >= 90 ? 'bg-red-500' : ($pct >= 60 ? 'bg-amber-500' : 'bg-green-500') }}"
+                            style="width: {{ $pct }}%"
+                        ></div>
+                    </div>
+                    <span class="shrink-0 text-xs tabular-nums text-gray-500 dark:text-gray-400">
+                        {{ number_format($this->totalUses) }} / {{ number_format($this->maxRedemptions) }}
                     </span>
                 </div>
-                <div class="text-2xl font-bold text-gray-900 dark:text-white">{{ $kpi['value'] }}</div>
             </div>
-        @endforeach
-    </div>
+        @endif
+    </x-filament::section>
 
-    {{-- ── Redemption progress bar (only when max_redemptions set) ────────── --}}
-    @if($this->maxRedemptions > 0)
+    {{-- ── Line chart — full width ─────────────────────────────────────────── --}}
+    <x-filament::section>
+        <x-slot name="heading">Uses — Last 30 Days</x-slot>
+        @if($this->totalUses > 0)
+            <div class="h-52">
+                <canvas id="billing-usage-chart"></canvas>
+            </div>
+        @else
+            <p class="py-10 text-center text-sm text-gray-400">No uses recorded yet.</p>
+        @endif
+    </x-filament::section>
+
+    {{-- ── Products + Order Statuses side by side ────────────────────────── --}}
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
         <x-filament::section>
-            <x-slot name="heading">Redemption Progress</x-slot>
-            <div class="flex items-center gap-4">
-                <div class="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
-                    <div
-                        class="h-3 rounded-full transition-all duration-700 {{ $pct >= 90 ? 'bg-danger-500' : ($pct >= 60 ? 'bg-warning-500' : 'bg-success-500') }}"
-                        style="width: {{ $pct }}%"
-                    ></div>
+            <x-slot name="heading">Products</x-slot>
+            @if($this->totalUses > 0)
+                <div class="h-52 flex items-center justify-center">
+                    <canvas id="billing-product-chart"></canvas>
                 </div>
-                <span class="shrink-0 text-sm font-semibold text-gray-700 dark:text-gray-300 tabular-nums">
-                    {{ number_format($this->totalUses) }} / {{ number_format($this->maxRedemptions) }}
-                    <span class="font-normal text-gray-400">({{ $pct }}%)</span>
-                </span>
-            </div>
+            @else
+                <p class="py-10 text-center text-sm text-gray-400">No data yet.</p>
+            @endif
         </x-filament::section>
-    @endif
 
-    {{-- ── Charts row ─────────────────────────────────────────────────────── --}}
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-
-        {{-- Line chart: uses over time --}}
-        <div class="lg:col-span-2">
-            <x-filament::section>
-                <x-slot name="heading">Uses — Last 30 Days</x-slot>
-                @if($this->totalUses > 0)
-                    <div class="h-56">
-                        <canvas id="billing-usage-chart"></canvas>
-                    </div>
-                @else
-                    <p class="py-8 text-center text-sm text-gray-400">No uses recorded yet.</p>
-                @endif
-            </x-filament::section>
-        </div>
-
-        {{-- Donut chart: product breakdown --}}
-        <div>
-            <x-filament::section>
-                <x-slot name="heading">Products</x-slot>
-                @if($this->totalUses > 0)
-                    <div class="h-56 flex items-center justify-center">
-                        <canvas id="billing-product-chart"></canvas>
-                    </div>
-                @else
-                    <p class="py-8 text-center text-sm text-gray-400">No data yet.</p>
-                @endif
-            </x-filament::section>
-        </div>
+        <x-filament::section>
+            <x-slot name="heading">Order Statuses</x-slot>
+            @if($this->totalUses > 0)
+                <div class="h-36 flex items-center justify-center">
+                    <canvas id="billing-status-chart"></canvas>
+                </div>
+                <div class="mt-3 space-y-1.5" id="billing-status-legend"></div>
+            @else
+                <p class="py-10 text-center text-sm text-gray-400">No data yet.</p>
+            @endif
+        </x-filament::section>
     </div>
 
-    {{-- ── Status breakdown + Recent orders ─────────────────────────────── --}}
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    {{-- ── Recent orders ───────────────────────────────────────────────────── --}}
+    <x-filament::section>
+        <x-slot name="heading">Recent Orders</x-slot>
+        @if(count($this->recentOrders))
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="border-b border-gray-100 dark:border-white/10 text-[11px] uppercase tracking-wide text-gray-400">
+                            <th class="px-3 py-2 text-left font-medium">#</th>
+                            <th class="px-3 py-2 text-left font-medium">Customer</th>
+                            <th class="px-3 py-2 text-left font-medium">Product</th>
+                            <th class="px-3 py-2 text-right font-medium">Price</th>
+                            <th class="px-3 py-2 text-right font-medium">Saved</th>
+                            <th class="px-3 py-2 text-left font-medium">Status</th>
+                            <th class="px-3 py-2 text-left font-medium">Date</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-50 dark:divide-white/5">
+                        @foreach($this->recentOrders as $row)
+                            @php
+                                $badge = match($row['color']) {
+                                    'success' => 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+                                    'warning' => 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+                                    'danger'  => 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+                                    default   => 'bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300',
+                                };
+                            @endphp
+                            <tr class="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                                <td class="px-3 py-2.5 font-mono text-xs text-gray-400">{{ str_pad($row['id'], 4, '0', STR_PAD_LEFT) }}</td>
+                                <td class="px-3 py-2.5 font-medium text-gray-900 dark:text-white">{{ $row['customer'] }}</td>
+                                <td class="px-3 py-2.5 text-gray-500 dark:text-gray-400 max-w-[160px] truncate">{{ $row['product'] }}</td>
+                                <td class="px-3 py-2.5 text-right tabular-nums text-gray-700 dark:text-gray-300">{{ $row['price'] }}</td>
+                                <td class="px-3 py-2.5 text-right tabular-nums font-medium text-green-600 dark:text-green-400">−{{ $row['discount'] }}</td>
+                                <td class="px-3 py-2.5">
+                                    <span class="rounded-full px-2 py-0.5 text-xs font-semibold {{ $badge }}">{{ $row['status'] }}</span>
+                                </td>
+                                <td class="px-3 py-2.5 text-xs text-gray-400 whitespace-nowrap">{{ $row['date'] }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @else
+            <p class="py-10 text-center text-sm text-gray-400">No orders have used this coupon yet.</p>
+        @endif
+    </x-filament::section>
 
-        {{-- Status breakdown (donut + legend) --}}
-        <div>
-            <x-filament::section class="h-full">
-                <x-slot name="heading">Order Statuses</x-slot>
-                @if($this->totalUses > 0)
-                    <div class="h-40 flex items-center justify-center">
-                        <canvas id="billing-status-chart"></canvas>
-                    </div>
-                    <div class="mt-4 space-y-2" id="billing-status-legend"></div>
-                @else
-                    <p class="py-8 text-center text-sm text-gray-400">No data yet.</p>
-                @endif
-            </x-filament::section>
-        </div>
-
-        {{-- Recent orders --}}
-        <div class="lg:col-span-2">
-            <x-filament::section>
-                <x-slot name="heading">Recent Orders</x-slot>
-                @if(count($this->recentOrders))
-                    <div class="overflow-x-auto -mx-2">
-                        <table class="w-full text-sm">
-                            <thead>
-                                <tr class="border-b border-gray-100 dark:border-white/10 text-xs uppercase tracking-wide text-gray-400">
-                                    <th class="px-3 py-2 text-left">#</th>
-                                    <th class="px-3 py-2 text-left">Customer</th>
-                                    <th class="px-3 py-2 text-left">Product</th>
-                                    <th class="px-3 py-2 text-right">Price</th>
-                                    <th class="px-3 py-2 text-right">Saved</th>
-                                    <th class="px-3 py-2 text-left">Status</th>
-                                    <th class="px-3 py-2 text-left">Date</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-50 dark:divide-white/5">
-                                @foreach($this->recentOrders as $row)
-                                    @php
-                                        $badge = match($row['color']) {
-                                            'success' => 'bg-success-100 text-success-700 dark:bg-success-900/40 dark:text-success-300',
-                                            'warning' => 'bg-warning-100 text-warning-700 dark:bg-warning-900/40 dark:text-warning-300',
-                                            'danger'  => 'bg-danger-100 text-danger-700 dark:bg-danger-900/40 dark:text-danger-300',
-                                            default   => 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
-                                        };
-                                    @endphp
-                                    <tr class="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                                        <td class="px-3 py-2.5 text-gray-400 font-mono text-xs">{{ str_pad($row['id'], 4, '0', STR_PAD_LEFT) }}</td>
-                                        <td class="px-3 py-2.5 font-medium text-gray-900 dark:text-white">{{ $row['customer'] }}</td>
-                                        <td class="px-3 py-2.5 text-gray-500 dark:text-gray-400 max-w-[160px] truncate">{{ $row['product'] }}</td>
-                                        <td class="px-3 py-2.5 text-right tabular-nums text-gray-700 dark:text-gray-300">{{ $row['price'] }}</td>
-                                        <td class="px-3 py-2.5 text-right tabular-nums text-success-600 dark:text-success-400 font-medium">−{{ $row['discount'] }}</td>
-                                        <td class="px-3 py-2.5">
-                                            <span class="inline-block rounded-full px-2 py-0.5 text-xs font-semibold {{ $badge }}">{{ $row['status'] }}</span>
-                                        </td>
-                                        <td class="px-3 py-2.5 text-gray-400 text-xs whitespace-nowrap">{{ $row['date'] }}</td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                @else
-                    <p class="py-8 text-center text-sm text-gray-400">No orders have used this coupon yet.</p>
-                @endif
-            </x-filament::section>
-        </div>
-    </div>
 </x-filament-panels::page>
 
 @assets
@@ -228,7 +191,7 @@
                     label: 'Uses',
                     data: usage.data,
                     borderColor: '#6366f1',
-                    backgroundColor: 'rgba(99,102,241,0.12)',
+                    backgroundColor: 'rgba(99,102,241,0.10)',
                     borderWidth: 2,
                     tension: 0.4,
                     fill: true,
@@ -262,7 +225,7 @@
         });
     }
 
-    // ── Product doughnut chart ────────────────────────────────────────────────
+    // ── Product doughnut ──────────────────────────────────────────────────────
     const productEl = document.getElementById('billing-product-chart');
     if (productEl) {
         const product = @json(json_decode($this->productChartJson));
@@ -274,23 +237,18 @@
                     data: product.data,
                     backgroundColor: product.colors,
                     borderWidth: 2,
-                    borderColor: isDark() ? '#111827' : '#ffffff',
+                    borderColor: isDark() ? '#1f2937' : '#ffffff',
                     hoverOffset: 6,
                 }],
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                cutout: '65%',
+                cutout: '62%',
                 plugins: {
                     legend: {
                         position: 'bottom',
-                        labels: {
-                            color: textColor(),
-                            boxWidth: 10,
-                            padding: 10,
-                            font: { size: 11 },
-                        },
+                        labels: { color: textColor(), boxWidth: 10, padding: 8, font: { size: 11 } },
                     },
                     tooltip: {
                         callbacks: {
@@ -302,11 +260,11 @@
         });
     }
 
-    // ── Status doughnut chart ─────────────────────────────────────────────────
+    // ── Status doughnut ───────────────────────────────────────────────────────
     const statusEl = document.getElementById('billing-status-chart');
     if (statusEl) {
         const status = @json(json_decode($this->statusChartJson));
-        const chart = new Chart(statusEl, {
+        new Chart(statusEl, {
             type: 'doughnut',
             data: {
                 labels: status.labels,
@@ -314,29 +272,28 @@
                     data: status.data,
                     backgroundColor: status.colors,
                     borderWidth: 2,
-                    borderColor: isDark() ? '#111827' : '#ffffff',
+                    borderColor: isDark() ? '#1f2937' : '#ffffff',
                     hoverOffset: 4,
                 }],
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                cutout: '70%',
+                cutout: '68%',
                 plugins: { legend: { display: false } },
             },
         });
 
-        // Custom legend
         const legendEl = document.getElementById('billing-status-legend');
         if (legendEl) {
             const total = status.data.reduce((a, b) => a + b, 0);
             legendEl.innerHTML = status.labels.map((label, i) => `
-                <div class="flex items-center justify-between gap-2 text-sm">
-                    <div class="flex items-center gap-2">
-                        <span class="inline-block w-2.5 h-2.5 rounded-full shrink-0" style="background:${status.colors[i]}"></span>
-                        <span class="text-gray-700 dark:text-gray-300">${label}</span>
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;">
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span style="width:8px;height:8px;border-radius:50%;background:${status.colors[i]};flex-shrink:0;display:inline-block;"></span>
+                        <span style="color:${isDark()?'#d1d5db':'#374151'}">${label}</span>
                     </div>
-                    <span class="text-gray-400 tabular-nums">${status.data[i]} <span class="text-gray-300 dark:text-gray-600">(${Math.round(status.data[i]/total*100)}%)</span></span>
+                    <span style="color:#9ca3af;font-variant-numeric:tabular-nums;">${status.data[i]} <span style="opacity:.5;">(${Math.round(status.data[i]/total*100)}%)</span></span>
                 </div>
             `).join('');
         }

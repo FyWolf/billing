@@ -4,6 +4,7 @@ namespace Fywolf\Billing\Models;
 
 use App\Models\Egg;
 use Filament\Support\Contracts\HasLabel;
+use Fywolf\Billing\Enums\OrderStatus;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -19,6 +20,8 @@ use Stripe\StripeClient;
  * @property ?string $image
  * @property ?string $category
  * @property int $sort_order
+ * @property ?int $stock
+ * @property bool $is_enabled
  * @property int $cores
  * @property int $memory
  * @property int $disk
@@ -57,20 +60,24 @@ class Product extends Model implements HasLabel
         'allocation_limit',
         'database_limit',
         'backup_limit',
+        'stock',
+        'is_enabled',
     ];
 
     protected $attributes = [
-        'ports'     => '[]',
-        'tags'      => '[]',
-        'io_weight' => 500,
+        'ports'      => '[]',
+        'tags'       => '[]',
+        'io_weight'  => 500,
+        'is_enabled' => true,
     ];
 
     protected function casts(): array
     {
         return [
-            'ports'    => 'array',
-            'tags'     => 'array',
-            'node_ids' => 'array',
+            'ports'      => 'array',
+            'tags'       => 'array',
+            'node_ids'   => 'array',
+            'is_enabled' => 'boolean',
         ];
     }
 
@@ -110,6 +117,41 @@ class Product extends Model implements HasLabel
     public function egg(): BelongsTo
     {
         return $this->belongsTo(Egg::class, 'egg_id');
+    }
+
+    /**
+     * Returns the number of slots still available, or null for unlimited.
+     * Counts Active, Pending, and GracePeriod orders against the stock cap.
+     */
+    public function availableStock(): ?int
+    {
+        if ($this->stock === null) {
+            return null;
+        }
+
+        $used = Order::whereHas('productPrice', fn ($q) => $q->where('product_id', $this->id))
+            ->whereIn('status', [
+                OrderStatus::Active->value,
+                OrderStatus::Pending->value,
+                OrderStatus::GracePeriod->value,
+            ])
+            ->count();
+
+        return max(0, $this->stock - $used);
+    }
+
+    /**
+     * Returns true when the product is enabled and has remaining stock (or unlimited stock).
+     */
+    public function isAvailable(): bool
+    {
+        if (!$this->is_enabled) {
+            return false;
+        }
+
+        $available = $this->availableStock();
+
+        return $available === null || $available > 0;
     }
 
     public function getLabel(): string

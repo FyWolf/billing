@@ -14,10 +14,12 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TagsInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Fieldset;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\ToggleColumn;
 use Filament\Tables\Table;
 use Illuminate\Support\Number;
 
@@ -57,6 +59,17 @@ class ProductResource extends Resource
                     ->numeric()
                     ->default(0)
                     ->helperText('Lower numbers appear first within a category.'),
+                Toggle::make('is_enabled')
+                    ->label('Enabled')
+                    ->default(true)
+                    ->helperText('Disabled products are hidden from the store and cannot be purchased.'),
+                TextInput::make('stock')
+                    ->label('Stock Limit')
+                    ->numeric()
+                    ->nullable()
+                    ->minValue(1)
+                    ->placeholder('Unlimited')
+                    ->helperText('Max concurrent active orders. Leave empty for unlimited.'),
                 Fieldset::make('Server')
                     ->columnSpanFull()
                     ->schema([
@@ -160,6 +173,18 @@ class ProductResource extends Resource
                     ->placeholder('Uncategorized')
                     ->sortable()
                     ->searchable(),
+                ToggleColumn::make('is_enabled')
+                    ->label('Enabled')
+                    ->sortable(),
+                TextColumn::make('stock')
+                    ->label('Stock')
+                    ->placeholder('Unlimited')
+                    ->sortable()
+                    ->formatStateUsing(function (Product $product) {
+                        if ($product->stock === null) return null; // shows placeholder
+                        $available = $product->availableStock();
+                        return $available . ' / ' . $product->stock;
+                    }),
                 TextColumn::make('egg.name')
                     ->sortable()
                     ->icon('tabler-egg')

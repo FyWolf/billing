@@ -85,6 +85,25 @@ class ProductWidget extends Widget
             return;
         }
 
+        if (!$this->product->is_enabled) {
+            Notification::make()
+                ->title('Product unavailable')
+                ->body('This product is currently unavailable.')
+                ->danger()
+                ->send();
+            return;
+        }
+
+        $available = $this->product->availableStock();
+        if ($available !== null && $available <= 0) {
+            Notification::make()
+                ->title('Out of stock')
+                ->body('This product is currently sold out.')
+                ->danger()
+                ->send();
+            return;
+        }
+
         /** @var Customer $customer */
         $customer = Customer::firstOrCreate(
             ['user_id' => user()->id],
