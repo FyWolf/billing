@@ -139,8 +139,11 @@ class OrdersResource extends Resource
                     ->requiresConfirmation()
                     ->action(fn (Order $order) => redirect($order->getPaymentUrl())),
                 Action::make('cancel')
-                    ->label(fn (Order $order) => $order->stripe_subscription_id ? 'Cancel Subscription' : 'Cancel')
-                    ->visible(fn (Order $order) => $order->status === OrderStatus::Pending || $order->status === OrderStatus::Active)
+                    ->label('Cancel Subscription')
+                    ->visible(fn (Order $order) =>
+                        $order->status === OrderStatus::Pending ||
+                        ($order->status === OrderStatus::Active && $order->stripe_subscription_id)
+                    )
                     ->color('danger')
                     ->requiresConfirmation()
                     ->modalDescription(fn (Order $order) => $order->stripe_subscription_id

@@ -27,10 +27,48 @@ class ProductWidget extends Widget implements HasSchemas
 
     public string $couponCode = '';
 
+    /** null = not yet validated, array = result of last validation attempt */
+    public ?array $couponValidation = null;
+
+    public function updatedCouponCode(): void
+    {
+        $this->couponValidation = null;
+    }
+
+    public function validateCoupon(): void
+    {
+        if (empty($this->couponCode)) {
+            $this->couponValidation = null;
+            return;
+        }
+
+        $coupon = Coupon::findByCode($this->couponCode);
+
+        if (!$coupon) {
+            $this->couponValidation = [
+                'valid'   => false,
+                'message' => 'This code is invalid or has expired.',
+            ];
+            return;
+        }
+
+        if ($coupon->amount_off) {
+            $formatter = new \NumberFormatter(user()->language, \NumberFormatter::CURRENCY);
+            $discount  = $formatter->formatCurrency($coupon->amount_off, config('billing.currency'));
+            $message   = "{$discount} off";
+        } elseif ($coupon->percent_off) {
+            $message = "{$coupon->percent_off}% off";
+        } else {
+            $message = 'Discount applied';
+        }
+
+        $this->couponValidation = [
+            'valid'   => true,
+            'message' => $message,
+        ];
+    }
+
     /**
-     * Schema for the spec entries only (CPU, RAM, disk).
-     * Coupon input and order buttons are rendered directly in the blade view.
-     */
     public function content(Schema $schema): Schema
     {
         return $schema
