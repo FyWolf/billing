@@ -17,7 +17,7 @@ class CouponStatsPage extends Page
 
     protected static string $resource = CouponResource::class;
 
-    protected static string $view = 'billing::admin.coupon-stats';
+    protected string $view = 'billing::admin.coupon-stats'; // @phpstan-ignore property.defaultValue
 
     // ── KPI scalars ──────────────────────────────────────────────────────────
 
