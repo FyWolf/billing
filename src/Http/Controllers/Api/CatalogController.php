@@ -11,7 +11,6 @@ class CatalogController extends Controller
     public function __invoke(): JsonResponse
     {
         $products = Product::with('prices')
-            ->where('is_enabled', true)
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get()
@@ -31,6 +30,7 @@ class CatalogController extends Controller
                     'memory'         => $product->memory,
                     'disk'           => $product->disk,
                     'backup_limit'   => $product->backup_limit,
+                    'is_enabled'      => $product->is_enabled,
                     'stock_available' => $product->availableStock(),
                     'prices'         => $product->prices->map(fn ($price) => [
                         'id'             => $price->id,

@@ -20,7 +20,6 @@ class Dashboard extends BaseDashboard
         ];
 
         $products = Product::with('prices')
-            ->where('is_enabled', true)
             ->orderBy('category')
             ->orderBy('sort_order')
             ->orderBy('name')
