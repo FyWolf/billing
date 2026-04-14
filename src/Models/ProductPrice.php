@@ -143,6 +143,14 @@ class ProductPrice extends Model implements HasLabel
         return $formatter->formatCurrency($this->cost, config('billing.currency'));
     }
 
+    public function formatCostRaw(float $amount): string
+    {
+        $locale = auth()->user()?->language ?? 'en';
+        $formatter = new NumberFormatter($locale, NumberFormatter::CURRENCY);
+
+        return $formatter->formatCurrency($amount, config('billing.currency'));
+    }
+
     private static function isStripeEnabled(): bool
     {
         return !empty(config('billing.stripe.secret'));

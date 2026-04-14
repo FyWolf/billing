@@ -3,6 +3,7 @@
 namespace Fywolf\Billing\Filament\App\Pages;
 
 use App\Filament\Pages\Auth\EditProfile as BaseEditProfile;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
 use Fywolf\Billing\Models\Customer;
@@ -13,23 +14,51 @@ class EditProfile extends BaseEditProfile
     {
         $tabs = parent::getDefaultTabs();
 
-        // Account tab is always the first tab; append billing name fields to it.
-        // getDefaultChildComponents() reads the raw stored array without requiring
-        // the container to be initialized (unlike getChildComponents()).
+        // Account tab is always the first tab; append billing fields to it.
         $accountTab = $tabs[0];
         $existing = $accountTab->getDefaultChildComponents();
         $accountTab->schema([
             ...(is_array($existing) ? $existing : []),
-            Section::make('Billing Profile')
-                ->description('Used on invoices and receipts.')
+            Section::make('Profil de facturation')
+                ->description('Utilisé sur vos factures et reçus.')
                 ->columns(2)
                 ->schema([
                     TextInput::make('billing_first_name')
-                        ->label('First Name')
+                        ->label('Prénom')
                         ->maxLength(255),
                     TextInput::make('billing_last_name')
-                        ->label('Last Name')
+                        ->label('Nom')
                         ->maxLength(255),
+                    TextInput::make('billing_company_name')
+                        ->label('Société (optionnel)')
+                        ->maxLength(255)
+                        ->columnSpanFull(),
+                    TextInput::make('billing_address')
+                        ->label('Adresse')
+                        ->maxLength(255)
+                        ->columnSpanFull(),
+                    TextInput::make('billing_address2')
+                        ->label("Complément d'adresse")
+                        ->maxLength(255)
+                        ->columnSpanFull(),
+                    TextInput::make('billing_city')
+                        ->label('Ville')
+                        ->maxLength(100),
+                    TextInput::make('billing_zip')
+                        ->label('Code postal')
+                        ->maxLength(20),
+                    TextInput::make('billing_country')
+                        ->label('Pays')
+                        ->maxLength(100)
+                        ->columnSpanFull(),
+                    TextInput::make('billing_vat_number')
+                        ->label('Numéro de TVA intracommunautaire')
+                        ->placeholder('FR12345678901')
+                        ->maxLength(20),
+                    TextInput::make('billing_siret')
+                        ->label('SIRET (sociétés françaises)')
+                        ->placeholder('12345678901234')
+                        ->maxLength(14),
                 ]),
         ]);
 
@@ -41,27 +70,51 @@ class EditProfile extends BaseEditProfile
         $data = parent::mutateFormDataBeforeFill($data);
 
         $customer = Customer::where('user_id', $this->getUser()->id)->first();
-        $data['billing_first_name'] = $customer?->first_name;
-        $data['billing_last_name']  = $customer?->last_name;
+        $data['billing_first_name']   = $customer?->first_name;
+        $data['billing_last_name']    = $customer?->last_name;
+        $data['billing_company_name'] = $customer?->company_name;
+        $data['billing_address']      = $customer?->address;
+        $data['billing_address2']     = $customer?->address2;
+        $data['billing_city']         = $customer?->city;
+        $data['billing_zip']          = $customer?->zip;
+        $data['billing_country']      = $customer?->country;
+        $data['billing_vat_number']   = $customer?->vat_number;
+        $data['billing_siret']        = $customer?->siret;
 
         return $data;
     }
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        $firstName = $data['billing_first_name'] ?? null;
-        $lastName  = $data['billing_last_name'] ?? null;
+        $billingFields = [
+            'first_name'   => $data['billing_first_name'] ?? null,
+            'last_name'    => $data['billing_last_name'] ?? null,
+            'company_name' => $data['billing_company_name'] ?? null,
+            'address'      => $data['billing_address'] ?? null,
+            'address2'     => $data['billing_address2'] ?? null,
+            'city'         => $data['billing_city'] ?? null,
+            'zip'          => $data['billing_zip'] ?? null,
+            'country'      => $data['billing_country'] ?? null,
+            'vat_number'   => $data['billing_vat_number'] ?? null,
+            'siret'        => $data['billing_siret'] ?? null,
+        ];
 
-        unset($data['billing_first_name'], $data['billing_last_name']);
+        unset(
+            $data['billing_first_name'], $data['billing_last_name'],
+            $data['billing_company_name'], $data['billing_address'],
+            $data['billing_address2'], $data['billing_city'],
+            $data['billing_zip'], $data['billing_country'],
+            $data['billing_vat_number'], $data['billing_siret'],
+        );
 
         $data = parent::mutateFormDataBeforeSave($data);
 
         Customer::updateOrCreate(
             ['user_id' => $this->getUser()->id],
-            [
-                'first_name' => $firstName ?: $this->getUser()->username,
-                'last_name'  => $lastName  ?: $this->getUser()->username,
-            ]
+            array_merge($billingFields, [
+                'first_name' => $billingFields['first_name'] ?: $this->getUser()->username,
+                'last_name'  => $billingFields['last_name']  ?: $this->getUser()->username,
+            ])
         );
 
         return $data;
