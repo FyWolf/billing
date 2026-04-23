@@ -23,17 +23,9 @@ use Stripe\StripeClient;
  * @property bool $is_enabled
  * @property ?int $stock
  * @property bool $force_out_of_stock
- * @property int $cores
- * @property int $memory
- * @property int $disk
- * @property int $swap
- * @property int $io_weight
  * @property array<int|string> $ports
  * @property string[] $tags
  * @property int[]|null $node_ids
- * @property int $allocation_limit
- * @property int $database_limit
- * @property int $backup_limit
  * @property int $egg_id
  * @property int $product_id
  * @property Egg $egg
@@ -56,26 +48,17 @@ class Pack extends Model implements HasLabel
         'is_enabled',
         'stock',
         'force_out_of_stock',
-        'cores',
-        'memory',
-        'disk',
-        'swap',
-        'io_weight',
         'ports',
         'tags',
         'node_ids',
-        'allocation_limit',
-        'database_limit',
-        'backup_limit',
         'egg_id',
         'product_id',
     ];
 
     protected $attributes = [
-        'ports'             => '[]',
-        'tags'              => '[]',
-        'io_weight'         => 500,
-        'is_enabled'        => true,
+        'ports'              => '[]',
+        'tags'               => '[]',
+        'is_enabled'         => true,
         'force_out_of_stock' => false,
     ];
 

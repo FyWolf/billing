@@ -9,37 +9,20 @@
     @endif
 
     @php
-        $specs = array_filter([
-            $this->product->cores ? ($this->product->cores . ($this->product->cores === 1 ? ' Core' : ' Cores')) : null,
-            $this->product->memory ? ($this->formatSize($this->product->memory) . ' RAM') : null,
-            $this->product->disk   ? ($this->formatSize($this->product->disk)   . ' Disk') : null,
-            $this->product->backup_limit   ? ($this->product->backup_limit   . ' Backups')   : null,
-            $this->product->database_limit ? ($this->product->database_limit . ' Databases') : null,
-        ]);
-    @endphp
-    @if($specs)
-        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem;">
-            @foreach($specs as $spec)
-                <span style="font-size: 0.8rem; padding: 0.2rem 0.6rem; border-radius: 999px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: inherit;">
-                    {{ $spec }}
-                </span>
-            @endforeach
-        </div>
-    @endif
-
-    @php
         $availableExpansions = $this->product->packExpansions
             ->filter(fn ($pe) => $pe->is_enabled && $pe->expansion->isAvailable());
+        $stockAvailable = $this->product->availableStock();
+        $isAvailable    = $this->product->isAvailable();
     @endphp
 
     @if($availableExpansions->isNotEmpty())
-        <div style="margin-top: 1rem;">
-            <p style="font-size: 0.8rem; font-weight: 600; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; color: rgb(156 163 175);">Add-ons</p>
+        <div style="margin-top: 0.75rem;">
+            <p style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: rgb(156 163 175); margin-bottom: 0.5rem;">Add-ons</p>
             @foreach($availableExpansions as $pe)
                 @php $checked = in_array($pe->id, $this->selectedExpansionIds, true); @endphp
                 <label
                     wire:click.prevent="toggleExpansion({{ $pe->id }})"
-                    style="display: flex; align-items: flex-start; gap: 0.6rem; margin-bottom: 0.5rem; cursor: pointer; padding: 0.5rem 0.6rem; border-radius: 0.4rem; border: 1px solid {{ $checked ? 'rgb(99 102 241)' : 'rgba(255,255,255,0.08)' }}; background: {{ $checked ? 'rgba(99,102,241,0.08)' : 'transparent' }}; transition: border-color 0.15s, background 0.15s;"
+                    style="display: flex; align-items: flex-start; gap: 0.6rem; margin-bottom: 0.4rem; cursor: pointer; padding: 0.5rem 0.6rem; border-radius: 0.4rem; border: 1px solid {{ $checked ? 'rgb(99 102 241)' : 'rgba(255,255,255,0.08)' }}; background: {{ $checked ? 'rgba(99,102,241,0.08)' : 'transparent' }};"
                 >
                     <input type="checkbox" {{ $checked ? 'checked' : '' }} style="margin-top: 0.15rem; flex-shrink: 0;" readonly />
                     <span style="font-size: 0.85rem; line-height: 1.4;">
@@ -94,11 +77,6 @@
         @endif
     </div>
 
-    @php
-        $stockAvailable = $this->product->availableStock();
-        $isAvailable    = $this->product->isAvailable();
-    @endphp
-
     @if(!$this->product->is_enabled)
         <p style="margin-top: 1rem; font-size: 0.85rem; color: rgb(156 163 175);">
             This pack is currently unavailable.
@@ -114,15 +92,59 @@
             </p>
         @endif
 
-        <div style="margin-top: 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem;">
+        <div style="margin-top: 1rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem;">
             @foreach($this->product->prices as $price)
-                <x-filament::button
-                    wire:click="placeOrder({{ $price->id }})"
-                    wire:loading.attr="disabled"
-                    wire:target="placeOrder({{ $price->id }})"
-                >
-                    {{ $price->getLabel() }}{{ $price->hasTrial() ? ' (' . $price->trial_days . '-day free trial)' : '' }}
-                </x-filament::button>
+                <div style="border-radius: 0.5rem; border: 1px solid rgba(255,255,255,0.1); padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                    <p style="font-size: 0.9rem; font-weight: 700; margin: 0;" class="text-gray-950 dark:text-white">
+                        {{ $price->name ?: 'Standard' }}
+                    </p>
+
+                    @php
+                        $binary = (bool) config('panel.use_binary_prefix');
+                        $specs = array_filter([
+                            $price->cores ? ($price->cores . ($price->cores === 1 ? ' Core' : ' Cores')) : null,
+                            $price->memory ? ($this->formatSize($price->memory) . ' RAM') : null,
+                            $price->disk   ? ($this->formatSize($price->disk)   . ' Disk') : null,
+                            $price->backup_limit   ? ($price->backup_limit   . ' Backups')   : null,
+                            $price->database_limit ? ($price->database_limit . ' Databases') : null,
+                        ]);
+                    @endphp
+                    @if($specs)
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.3rem;">
+                            @foreach($specs as $spec)
+                                <span style="font-size: 0.72rem; padding: 0.15rem 0.5rem; border-radius: 999px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: inherit;">
+                                    {{ $spec }}
+                                </span>
+                            @endforeach
+                        </div>
+                    @endif
+
+                    <div style="margin-top: auto; padding-top: 0.5rem; border-top: 1px solid rgba(255,255,255,0.07);">
+                        <p style="font-size: 1rem; font-weight: 700; margin: 0 0 0.1rem;" class="text-gray-950 dark:text-white">
+                            {{ $price->formatCost() }}
+                            @if($price->renewable)
+                                <span style="font-size: 0.7rem; font-weight: 400; color: rgb(156 163 175);">
+                                    / {{ $price->interval_value > 1 ? $price->interval_value . ' ' : '' }}{{ $price->interval_type->getLabel() }}
+                                </span>
+                            @endif
+                        </p>
+                        @if($price->hasTrial())
+                            <p style="font-size: 0.72rem; color: rgb(34 197 94); margin: 0 0 0.4rem;">
+                                {{ $price->trial_days }}-day free trial
+                            </p>
+                        @endif
+
+                        <x-filament::button
+                            wire:click="placeOrder({{ $price->id }})"
+                            wire:loading.attr="disabled"
+                            wire:target="placeOrder({{ $price->id }})"
+                            style="width: 100%;"
+                            size="sm"
+                        >
+                            Get Started
+                        </x-filament::button>
+                    </div>
+                </div>
             @endforeach
         </div>
     @endif

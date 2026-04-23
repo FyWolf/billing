@@ -17,6 +17,14 @@ return new class extends Migration
             $table->string('interval_type')->default('month');
             $table->unsignedSmallInteger('interval_value')->default(1);
             $table->unsignedSmallInteger('trial_days')->default(0);
+            $table->unsignedSmallInteger('cores')->default(1);
+            $table->unsignedInteger('memory')->default(1024);
+            $table->unsignedInteger('disk')->default(5120);
+            $table->integer('swap')->default(0);
+            $table->unsignedSmallInteger('io_weight')->default(500);
+            $table->unsignedSmallInteger('allocation_limit')->default(0);
+            $table->unsignedSmallInteger('database_limit')->default(0);
+            $table->unsignedSmallInteger('backup_limit')->default(0);
             $table->json('environment_overrides')->nullable();
 
             $table->unsignedInteger('pack_id');

@@ -19,22 +19,9 @@ return new class extends Migration
             $table->unsignedInteger('stock')->nullable();
             $table->boolean('force_out_of_stock')->default(false);
 
-            // Server specification
-            $table->unsignedSmallInteger('cores')->default(1);
-            $table->unsignedInteger('memory')->default(0);
-            $table->unsignedInteger('disk')->default(0);
-            $table->integer('swap')->default(0);
-            $table->unsignedSmallInteger('io_weight')->default(500);
-
-            // Port and node configuration
             $table->json('ports')->default('[]');
             $table->json('tags')->default('[]');
             $table->json('node_ids')->nullable();
-
-            // Resource limits
-            $table->unsignedSmallInteger('allocation_limit')->default(0);
-            $table->unsignedSmallInteger('database_limit')->default(0);
-            $table->unsignedSmallInteger('backup_limit')->default(0);
 
             $table->unsignedInteger('egg_id');
             $table->foreign('egg_id')->references('id')->on('eggs')->cascadeOnDelete();

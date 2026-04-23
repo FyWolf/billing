@@ -26,7 +26,6 @@ use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\ToggleColumn;
 use Filament\Tables\Table;
-use Illuminate\Support\Number;
 
 class PackResource extends Resource
 {
@@ -86,54 +85,15 @@ class PackResource extends Resource
                     ->label('Force Out of Stock')
                     ->default(false)
                     ->helperText('Mark as out of stock without changing the actual stock number.'),
-                Fieldset::make('Server')
+                Select::make('egg_id')
+                    ->prefixIcon('tabler-egg')
+                    ->label('Egg')
+                    ->required()
+                    ->relationship('egg', 'name')
+                    ->searchable()
+                    ->preload()
                     ->columnSpanFull()
-                    ->schema([
-                        Select::make('egg_id')
-                            ->prefixIcon('tabler-egg')
-                            ->label('Egg')
-                            ->required()
-                            ->relationship('egg', 'name')
-                            ->searchable()
-                            ->preload()
-                            ->columnSpanFull(),
-                        TextInput::make('cores')
-                            ->prefixIcon('tabler-cpu')
-                            ->label('CPU Cores')
-                            ->required()
-                            ->numeric()
-                            ->minValue(1)
-                            ->default(1),
-                        TextInput::make('memory')
-                            ->prefixIcon('tabler-database')
-                            ->required()
-                            ->suffix(config('panel.use_binary_prefix') ? 'MiB' : 'MB')
-                            ->numeric()
-                            ->minValue(0)
-                            ->hint('Set to 0 for unlimited.'),
-                        TextInput::make('disk')
-                            ->prefixIcon('tabler-folder')
-                            ->required()
-                            ->suffix(config('panel.use_binary_prefix') ? 'MiB' : 'MB')
-                            ->numeric()
-                            ->minValue(0)
-                            ->hint('Set to 0 for unlimited.'),
-                        TextInput::make('swap')
-                            ->prefixIcon('tabler-file-database')
-                            ->required()
-                            ->suffix(config('panel.use_binary_prefix') ? 'MiB' : 'MB')
-                            ->numeric()
-                            ->minValue(-1)
-                            ->hint('Set to -1 for unlimited, 0 for no swap.'),
-                        TextInput::make('io_weight')
-                            ->prefixIcon('tabler-activity')
-                            ->label('I/O Weight')
-                            ->required()
-                            ->numeric()
-                            ->minValue(10)
-                            ->maxValue(1000)
-                            ->default(500),
-                    ]),
+                    ->helperText('The game/software type. Resource specs are set per price tier below.'),
                 Fieldset::make('Deployment')
                     ->columnSpanFull()
                     ->columns(2)
@@ -151,26 +111,6 @@ class PackResource extends Resource
                         TagsInput::make('tags')
                             ->default(array_filter(explode(',', config('billing.deployment_tags', ''))))
                             ->helperText('Only used when no specific nodes are selected.'),
-                    ]),
-                Fieldset::make('Limits')
-                    ->columnSpanFull()
-                    ->columns(3)
-                    ->schema([
-                        TextInput::make('allocation_limit')
-                            ->prefixIcon('tabler-network')
-                            ->required()
-                            ->numeric()
-                            ->minValue(0),
-                        TextInput::make('database_limit')
-                            ->prefixIcon('tabler-database')
-                            ->required()
-                            ->numeric()
-                            ->minValue(0),
-                        TextInput::make('backup_limit')
-                            ->prefixIcon('tabler-copy-check')
-                            ->required()
-                            ->numeric()
-                            ->minValue(0),
                     ]),
             ]);
     }
@@ -209,13 +149,10 @@ class PackResource extends Resource
                     ->sortable()
                     ->icon('tabler-egg')
                     ->url(fn (Pack $pack): string => route('filament.admin.resources.eggs.edit', ['record' => $pack->egg])),
-                TextColumn::make('cores')
-                    ->label('Cores')
-                    ->formatStateUsing(fn ($state) => $state . ($state === 1 ? ' core' : ' cores')),
-                TextColumn::make('memory')
-                    ->formatStateUsing(fn ($state) => $state === 0 ? 'Unlimited' : Number::format($state / (config('panel.use_binary_prefix') ? 1024 : 1000), 2, locale: auth()->user()->language) . (config('panel.use_binary_prefix') ? ' GiB' : ' GB')),
-                TextColumn::make('disk')
-                    ->formatStateUsing(fn ($state) => $state === 0 ? 'Unlimited' : Number::format($state / (config('panel.use_binary_prefix') ? 1024 : 1000), 2, locale: auth()->user()->language) . (config('panel.use_binary_prefix') ? ' GiB' : ' GB')),
+                TextColumn::make('prices_count')
+                    ->label('Tiers')
+                    ->counts('prices')
+                    ->sortable(),
             ])
             ->recordActions([
                 EditAction::make(),

@@ -18,6 +18,14 @@ use Stripe\StripeClient;
  * @property int $trial_days
  * @property PriceInterval $interval_type
  * @property int $interval_value
+ * @property int $cores
+ * @property int $memory
+ * @property int $disk
+ * @property int $swap
+ * @property int $io_weight
+ * @property int $allocation_limit
+ * @property int $database_limit
+ * @property int $backup_limit
  * @property array|null $environment_overrides
  * @property int $pack_id
  * @property Pack $pack
@@ -35,6 +43,14 @@ class PackPrice extends Model implements HasLabel
         'trial_days',
         'interval_type',
         'interval_value',
+        'cores',
+        'memory',
+        'disk',
+        'swap',
+        'io_weight',
+        'allocation_limit',
+        'database_limit',
+        'backup_limit',
         'environment_overrides',
     ];
 

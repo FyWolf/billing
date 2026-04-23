@@ -67,6 +67,74 @@ class PackPriceRelationManager extends RelationManager
                     ->required()
                     ->numeric()
                     ->minValue(1),
+                Fieldset::make('Resources')
+                    ->columnSpanFull()
+                    ->columns(3)
+                    ->schema([
+                        TextInput::make('cores')
+                            ->prefixIcon('tabler-cpu')
+                            ->label('CPU Cores')
+                            ->required()
+                            ->numeric()
+                            ->minValue(1)
+                            ->default(1),
+                        TextInput::make('memory')
+                            ->prefixIcon('tabler-database')
+                            ->label('Memory')
+                            ->required()
+                            ->suffix(config('panel.use_binary_prefix') ? 'MiB' : 'MB')
+                            ->numeric()
+                            ->minValue(0)
+                            ->default(1024)
+                            ->hint('0 = unlimited'),
+                        TextInput::make('disk')
+                            ->prefixIcon('tabler-folder')
+                            ->label('Disk')
+                            ->required()
+                            ->suffix(config('panel.use_binary_prefix') ? 'MiB' : 'MB')
+                            ->numeric()
+                            ->minValue(0)
+                            ->default(5120)
+                            ->hint('0 = unlimited'),
+                        TextInput::make('swap')
+                            ->prefixIcon('tabler-file-database')
+                            ->label('Swap')
+                            ->required()
+                            ->suffix(config('panel.use_binary_prefix') ? 'MiB' : 'MB')
+                            ->numeric()
+                            ->minValue(-1)
+                            ->default(0)
+                            ->hint('-1 = unlimited, 0 = none'),
+                        TextInput::make('io_weight')
+                            ->prefixIcon('tabler-activity')
+                            ->label('I/O Weight')
+                            ->required()
+                            ->numeric()
+                            ->minValue(10)
+                            ->maxValue(1000)
+                            ->default(500),
+                        TextInput::make('allocation_limit')
+                            ->prefixIcon('tabler-network')
+                            ->label('Allocations')
+                            ->required()
+                            ->numeric()
+                            ->minValue(0)
+                            ->default(0),
+                        TextInput::make('database_limit')
+                            ->prefixIcon('tabler-database')
+                            ->label('Databases')
+                            ->required()
+                            ->numeric()
+                            ->minValue(0)
+                            ->default(0),
+                        TextInput::make('backup_limit')
+                            ->prefixIcon('tabler-copy-check')
+                            ->label('Backups')
+                            ->required()
+                            ->numeric()
+                            ->minValue(0)
+                            ->default(0),
+                    ]),
                 Fieldset::make('Startup Variable Overrides')
                     ->columnSpanFull()
                     ->visible(fn () => !empty($variableOptions))
@@ -97,13 +165,20 @@ class PackPriceRelationManager extends RelationManager
         return $table
             ->columns([
                 TextColumn::make('name')
-                    ->label('Internal Name')
+                    ->label('Name')
                     ->sortable(),
+                TextColumn::make('specs')
+                    ->label('Resources')
+                    ->state(function (PackPrice $price) {
+                        $mem  = $price->memory === 0 ? '∞' : round($price->memory / (config('panel.use_binary_prefix') ? 1024 : 1000), 1) . (config('panel.use_binary_prefix') ? 'GiB' : 'GB');
+                        $disk = $price->disk   === 0 ? '∞' : round($price->disk   / (config('panel.use_binary_prefix') ? 1024 : 1000), 1) . (config('panel.use_binary_prefix') ? 'GiB' : 'GB');
+                        return "{$price->cores} core(s) · {$mem} RAM · {$disk} Disk";
+                    }),
                 TextColumn::make('cost')
                     ->sortable()
                     ->state(fn (PackPrice $price) => $price->formatCost()),
                 IconColumn::make('renewable')
-                    ->label('Can be renewed?')
+                    ->label('Renewable')
                     ->boolean(),
                 TextColumn::make('trial_days')
                     ->label('Trial')
@@ -111,14 +186,6 @@ class PackPriceRelationManager extends RelationManager
                     ->sortable(),
                 TextColumn::make('interval')
                     ->state(fn (PackPrice $price) => $price->interval_value . ' ' . $price->interval_type->name),
-                TextColumn::make('environment_overrides')
-                    ->label('Overrides')
-                    ->formatStateUsing(function ($state, PackPrice $record) {
-                        $overrides = $record->environment_overrides;
-                        if (!$overrides || !is_array($overrides)) return '—';
-                        return count($overrides) . ' var(s)';
-                    })
-                    ->placeholder('—'),
             ])
             ->headerActions([
                 CreateAction::make()

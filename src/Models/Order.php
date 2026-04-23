@@ -674,22 +674,24 @@ class Order extends Model implements HasLabel
             $extraBackup += $expansion->backup_limit_boost;
         }
 
+        $price = $this->packPrice;
+
         $data = [
             'name'                => $this->getLabel() . ' (' . $pack->getLabel() . ')',
             'owner_id'            => $this->customer->user->id,
             'egg_id'              => $pack->egg->id,
-            'cpu'                 => ($pack->cores + $extraCores) * 100,
-            'memory'              => $pack->memory + $extraMemory,
-            'disk'                => $pack->disk + $extraDisk,
-            'swap'                => $pack->swap,
-            'io'                  => $pack->io_weight,
+            'cpu'                 => ($price->cores + $extraCores) * 100,
+            'memory'              => $price->memory + $extraMemory,
+            'disk'                => $price->disk + $extraDisk,
+            'swap'                => $price->swap,
+            'io'                  => $price->io_weight,
             'environment'         => $environment,
             'skip_scripts'        => false,
             'start_on_completion' => true,
             'oom_killer'          => false,
-            'database_limit'      => $pack->database_limit + $extraDb,
-            'allocation_limit'    => $pack->allocation_limit + $extraAlloc,
-            'backup_limit'        => $pack->backup_limit + $extraBackup,
+            'database_limit'      => $price->database_limit + $extraDb,
+            'allocation_limit'    => $price->allocation_limit + $extraAlloc,
+            'backup_limit'        => $price->backup_limit + $extraBackup,
         ];
 
         if (!empty($pack->node_ids)) {
