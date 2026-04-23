@@ -134,18 +134,18 @@
         <tbody>
             <tr>
                 <td>
-                    <strong>{{ $order->productPrice->product->name }}</strong><br>
-                    <span style="color: #666; font-size: 11px;">{{ $order->productPrice->name }}</span>
+                    <strong>{{ $order->packPrice->pack->name }}</strong><br>
+                    <span style="color: #666; font-size: 11px;">{{ $order->packPrice->name }}</span>
                 </td>
                 <td>
-                    {{ $order->productPrice->interval_value }}
-                    {{ str_plural($order->productPrice->interval_type->getLabel(), $order->productPrice->interval_value) }}
+                    {{ $order->packPrice->interval_value }}
+                    {{ str_plural($order->packPrice->interval_type->getLabel(), $order->packPrice->interval_value) }}
                 </td>
                 <td class="text-right">
                     @if($tax['enabled'])
-                        {{ $order->productPrice->formatCostRaw($tax['amount_ht']) }}
+                        {{ $order->packPrice->formatCostRaw($tax['amount_ht']) }}
                     @else
-                        {{ $order->productPrice->formatCost() }}
+                        {{ $order->packPrice->formatCost() }}
                     @endif
                 </td>
             </tr>
@@ -158,24 +158,24 @@
             @if($tax['enabled'])
                 <tr class="subtotal-row">
                     <td>Sous-total HT</td>
-                    <td class="text-right">{{ $order->productPrice->formatCostRaw($tax['amount_ht']) }}</td>
+                    <td class="text-right">{{ $order->packPrice->formatCostRaw($tax['amount_ht']) }}</td>
                 </tr>
                 <tr class="tax-row">
                     <td>{{ $tax['label'] }} ({{ $tax['rate_percent'] }})</td>
-                    <td class="text-right">{{ $order->productPrice->formatCostRaw($tax['amount_tax']) }}</td>
+                    <td class="text-right">{{ $order->packPrice->formatCostRaw($tax['amount_tax']) }}</td>
                 </tr>
                 <tr class="total-row">
                     <td>Total TTC</td>
-                    <td class="text-right">{{ $order->productPrice->formatCostRaw($tax['amount_ttc']) }}</td>
+                    <td class="text-right">{{ $order->packPrice->formatCostRaw($tax['amount_ttc']) }}</td>
                 </tr>
             @else
                 <tr class="subtotal-row">
                     <td>Sous-total</td>
-                    <td class="text-right">{{ $order->productPrice->formatCost() }}</td>
+                    <td class="text-right">{{ $order->packPrice->formatCost() }}</td>
                 </tr>
                 <tr class="total-row">
                     <td>Total</td>
-                    <td class="text-right">{{ $order->productPrice->formatCost() }}</td>
+                    <td class="text-right">{{ $order->packPrice->formatCost() }}</td>
                 </tr>
             @endif
         </table>

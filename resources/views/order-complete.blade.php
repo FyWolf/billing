@@ -29,24 +29,24 @@
                     </div>
 
                     <div style="display: flex; justify-content: space-between;">
-                        <dt style="font-size: 0.875rem;" class="text-gray-500 dark:text-gray-400">Product</dt>
-                        <dd style="font-size: 0.875rem; font-weight: 500;" class="text-gray-950 dark:text-white">{{ $order->productPrice->product->name }}</dd>
+                        <dt style="font-size: 0.875rem;" class="text-gray-500 dark:text-gray-400">Pack</dt>
+                        <dd style="font-size: 0.875rem; font-weight: 500;" class="text-gray-950 dark:text-white">{{ $order->packPrice->pack->name }}</dd>
                     </div>
 
                     <div style="display: flex; justify-content: space-between;">
                         <dt style="font-size: 0.875rem;" class="text-gray-500 dark:text-gray-400">Plan</dt>
-                        <dd style="font-size: 0.875rem; font-weight: 500;" class="text-gray-950 dark:text-white">{{ $order->productPrice->name }}</dd>
+                        <dd style="font-size: 0.875rem; font-weight: 500;" class="text-gray-950 dark:text-white">{{ $order->packPrice->name }}</dd>
                     </div>
 
                     <div style="display: flex; justify-content: space-between;">
                         <dt style="font-size: 0.875rem;" class="text-gray-500 dark:text-gray-400">Amount</dt>
-                        <dd style="font-size: 0.875rem; font-weight: 500;" class="text-gray-950 dark:text-white">{{ $order->productPrice->formatCost() }}</dd>
+                        <dd style="font-size: 0.875rem; font-weight: 500;" class="text-gray-950 dark:text-white">{{ $order->packPrice->formatCost() }}</dd>
                     </div>
 
                     <div style="display: flex; justify-content: space-between;">
                         <dt style="font-size: 0.875rem;" class="text-gray-500 dark:text-gray-400">Billing Period</dt>
                         <dd style="font-size: 0.875rem; font-weight: 500;" class="text-gray-950 dark:text-white">
-                            {{ $order->productPrice->interval_value }} {{ str_plural($order->productPrice->interval_type->getLabel(), $order->productPrice->interval_value) }}
+                            {{ $order->packPrice->interval_value }} {{ str_plural($order->packPrice->interval_type->getLabel(), $order->packPrice->interval_value) }}
                         </dd>
                     </div>
 

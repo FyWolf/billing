@@ -12,22 +12,18 @@ return new class extends Migration
             $table->increments('id');
             $table->string('action');
             $table->json('metadata')->nullable();
-            $table->string('ip_address', 45)->nullable();
+            $table->string('ip_address')->nullable();
 
             $table->unsignedInteger('order_id')->nullable();
-            $table->foreign('order_id')->references('id')->on('orders')->nullOnDelete();
+            $table->foreign('order_id')->references('id')->on('billing_orders')->nullOnDelete();
 
             $table->unsignedInteger('customer_id')->nullable();
-            $table->foreign('customer_id')->references('id')->on('customers')->nullOnDelete();
+            $table->foreign('customer_id')->references('id')->on('billing_customers')->nullOnDelete();
 
             $table->unsignedInteger('user_id')->nullable();
             $table->foreign('user_id')->references('id')->on('users')->nullOnDelete();
 
-            // Audit logs are append-only — no updated_at
             $table->timestamp('created_at')->useCurrent();
-
-            $table->index(['action', 'created_at'], 'audit_logs_action_created_idx');
-            $table->index('order_id', 'audit_logs_order_id_idx');
         });
     }
 

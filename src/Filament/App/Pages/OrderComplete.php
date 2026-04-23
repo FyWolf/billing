@@ -37,7 +37,7 @@ class OrderComplete extends Page
             abort(404);
         }
 
-        $this->order = $order->load(['productPrice.product', 'customer.user']);
+        $this->order = $order->load(['packPrice.pack', 'customer.user']);
     }
 
     public function getTitle(): string|Htmlable

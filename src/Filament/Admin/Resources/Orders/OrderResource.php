@@ -8,12 +8,11 @@ use Fywolf\Billing\Enums\OrderStatus;
 use Fywolf\Billing\Enums\PaymentGateway;
 use Fywolf\Billing\Filament\Admin\Resources\Customers\Pages\EditCustomer;
 use Fywolf\Billing\Filament\Admin\Resources\Orders\Pages\ListOrders;
-use Fywolf\Billing\Filament\Admin\Resources\Products\Pages\EditProduct;
+use Fywolf\Billing\Filament\Admin\Resources\Packs\Pages\EditPack;
 use Fywolf\Billing\Models\AuditLog;
 use Fywolf\Billing\Models\Customer;
 use Fywolf\Billing\Models\Order;
-use Fywolf\Billing\Models\Product;
-use Fywolf\Billing\Models\ProductPrice;
+use Fywolf\Billing\Models\PackPrice;
 use Exception;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
@@ -49,12 +48,12 @@ class OrderResource extends Resource
                     ->relationship('customer')
                     ->getOptionLabelFromRecordUsing(fn (Customer $customer) => $customer->getLabel())
                     ->preload(),
-                Select::make('product_price_id')
-                    ->label('Product')
+                Select::make('pack_price_id')
+                    ->label('Pack')
                     ->required()
                     ->selectablePlaceholder(false)
-                    ->relationship('productPrice')
-                    ->getOptionLabelFromRecordUsing(fn (ProductPrice $productPrice) => $productPrice->product->getLabel() . ' (' . $productPrice->getLabel() . ')')
+                    ->relationship('packPrice')
+                    ->getOptionLabelFromRecordUsing(fn (PackPrice $packPrice) => $packPrice->pack->getLabel() . ' (' . $packPrice->getLabel() . ')')
                     ->preload(),
             ]);
     }
@@ -87,22 +86,22 @@ class OrderResource extends Resource
                     ->icon('tabler-brand-docker')
                     ->sortable()
                     ->url(fn (Order $order) => $order->server ? EditServer::getUrl(['record' => $order->server]) : null),
-                TextColumn::make('productPrice.product.name')
-                    ->label('Product')
+                TextColumn::make('packPrice.pack.name')
+                    ->label('Pack')
                     ->icon('tabler-package')
                     ->sortable()
-                    ->url(fn (Order $order) => EditProduct::getUrl(['record' => $order->productPrice->product])),
-                TextColumn::make('productPrice.name')
+                    ->url(fn (Order $order) => EditPack::getUrl(['record' => $order->packPrice->pack])),
+                TextColumn::make('packPrice.name')
                     ->label('Price')
                     ->sortable(),
-                TextColumn::make('productPrice.cost')
+                TextColumn::make('packPrice.cost')
                     ->label('Cost')
                     ->sortable()
                     ->formatStateUsing(function ($state) {
                         $formatter = new NumberFormatter(auth()->user()->language, NumberFormatter::CURRENCY);
                         return $formatter->formatCurrency($state, config('billing.currency'));
                     }),
-                TextColumn::make('pendingPrice.name')
+                TextColumn::make('pendingPackPrice.name')
                     ->label('Pending Plan')
                     ->placeholder('—')
                     ->icon('tabler-clock')
@@ -131,13 +130,12 @@ class OrderResource extends Resource
                         Select::make('new_price_id')
                             ->label('New Plan')
                             ->options(function () use ($order) {
-                                $currentPrice = $order->productPrice;
+                                $currentPrice = $order->packPrice;
 
-                                // Show all prices from the same product, excluding the current one
-                                return ProductPrice::where('product_id', $currentPrice->product_id)
+                                return PackPrice::where('pack_id', $currentPrice->pack_id)
                                     ->where('id', '!=', $currentPrice->id)
                                     ->get()
-                                    ->mapWithKeys(fn (ProductPrice $price) => [
+                                    ->mapWithKeys(fn (PackPrice $price) => [
                                         $price->id => $price->name . ' — ' . $price->formatCost()
                                             . ($price->cost > $currentPrice->cost ? ' (upgrade)' : ' (downgrade)'),
                                     ]);
@@ -151,7 +149,7 @@ class OrderResource extends Resource
                         ? 'The server\'s startup variables will be updated immediately. The new billing rate takes effect at the next renewal.'
                         : 'The server\'s startup variables will be updated immediately.')
                     ->action(function (Order $order, array $data) {
-                        $newPrice = ProductPrice::findOrFail($data['new_price_id']);
+                        $newPrice = PackPrice::findOrFail($data['new_price_id']);
 
                         $order->changePlan($newPrice);
 
@@ -244,8 +242,8 @@ class OrderResource extends Resource
                             ->label('Refund Amount (' . strtoupper(config('billing.currency', 'USD')) . ')')
                             ->numeric()
                             ->minValue(0.01)
-                            ->maxValue($order->productPrice->cost)
-                            ->placeholder($order->productPrice->formatCost() . ' (full refund)')
+                            ->maxValue($order->packPrice->cost)
+                            ->placeholder($order->packPrice->formatCost() . ' (full refund)')
                             ->helperText('Leave empty for a full refund.'),
                     ])
                     ->requiresConfirmation()

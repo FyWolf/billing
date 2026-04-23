@@ -52,17 +52,17 @@
                     </tr>
                     <tr>
                         <td>Product</td>
-                        <td>{{ $order->productPrice->product->name }}</td>
+                        <td>{{ $order->packPrice->pack->name }}</td>
                     </tr>
                     <tr>
                         <td>Plan</td>
-                        <td>{{ $order->productPrice->name }}</td>
+                        <td>{{ $order->packPrice->name }}</td>
                     </tr>
                     <tr>
                         <td>Billing Period</td>
                         <td>
-                            {{ $order->productPrice->interval_value }}
-                            {{ str_plural($order->productPrice->interval_type->getLabel(), $order->productPrice->interval_value) }}
+                            {{ $order->packPrice->interval_value }}
+                            {{ str_plural($order->packPrice->interval_type->getLabel(), $order->packPrice->interval_value) }}
                         </td>
                     </tr>
                     @if($order->payment_gateway)
@@ -79,7 +79,7 @@
                     @endif
                     <tr class="total-row">
                         <td>Total</td>
-                        <td>{{ $order->productPrice->formatCost() }}</td>
+                        <td>{{ $order->packPrice->formatCost() }}</td>
                     </tr>
                 </table>
             </div>

@@ -19,8 +19,10 @@ use Exception;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Filament\Support\Contracts\HasLabel;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Stripe\Checkout\Session;
 use Stripe\StripeClient;
@@ -40,17 +42,20 @@ use Stripe\StripeClient;
  * @property ?Carbon $confirmation_token_expires_at
  * @property int $customer_id
  * @property Customer $customer
- * @property int $product_price_id
- * @property ProductPrice $productPrice
- * @property ?int $pending_price_id
- * @property ?ProductPrice $pendingPrice
+ * @property int $pack_price_id
+ * @property PackPrice $packPrice
+ * @property ?int $pending_pack_price_id
+ * @property ?PackPrice $pendingPackPrice
  * @property ?int $coupon_id
  * @property ?Coupon $coupon
  * @property ?int $server_id
  * @property ?Server $server
+ * @property Collection|OrderExpansion[] $orderExpansions
  */
 class Order extends Model implements HasLabel
 {
+    protected $table = 'billing_orders';
+
     protected $fillable = [
         'stripe_checkout_id',
         'stripe_payment_id',
@@ -64,8 +69,8 @@ class Order extends Model implements HasLabel
         'confirmation_token',
         'confirmation_token_expires_at',
         'customer_id',
-        'product_price_id',
-        'pending_price_id',
+        'pack_price_id',
+        'pending_pack_price_id',
         'coupon_id',
         'server_id',
     ];
@@ -89,14 +94,14 @@ class Order extends Model implements HasLabel
         return $this->belongsTo(Customer::class, 'customer_id');
     }
 
-    public function productPrice(): BelongsTo
+    public function packPrice(): BelongsTo
     {
-        return $this->belongsTo(ProductPrice::class, 'product_price_id');
+        return $this->belongsTo(PackPrice::class, 'pack_price_id');
     }
 
-    public function pendingPrice(): BelongsTo
+    public function pendingPackPrice(): BelongsTo
     {
-        return $this->belongsTo(ProductPrice::class, 'pending_price_id');
+        return $this->belongsTo(PackPrice::class, 'pending_pack_price_id');
     }
 
     public function coupon(): BelongsTo
@@ -107,6 +112,11 @@ class Order extends Model implements HasLabel
     public function server(): BelongsTo
     {
         return $this->belongsTo(Server::class, 'server_id');
+    }
+
+    public function orderExpansions(): HasMany
+    {
+        return $this->hasMany(OrderExpansion::class, 'order_id');
     }
 
     // Helpers
@@ -171,27 +181,59 @@ class Order extends Model implements HasLabel
         return $stripeCustomer->id;
     }
 
-
     public function getCheckoutSession(): Session
     {
         /** @var StripeClient $stripeClient */
         $stripeClient = app(StripeClient::class);
 
         if (is_null($this->stripe_checkout_id)) {
-            $isSubscription = $this->productPrice->renewable;
+            $isSubscription = $this->packPrice->renewable;
+
+            $lineItems = [
+                [
+                    'price'    => $this->packPrice->stripe_id,
+                    'quantity' => 1,
+                ],
+            ];
+
+            $this->loadMissing('orderExpansions.packExpansion.expansion');
+
+            foreach ($this->orderExpansions as $orderExpansion) {
+                $pricePaid = (float) $orderExpansion->price_paid;
+
+                if ($pricePaid <= 0) {
+                    continue;
+                }
+
+                $expansion = $orderExpansion->packExpansion->expansion;
+                $expansion->syncStripe();
+
+                $priceData = [
+                    'currency'    => config('billing.currency'),
+                    'product'     => $expansion->stripe_id,
+                    'unit_amount' => (int) round($pricePaid * 100),
+                ];
+
+                if ($isSubscription) {
+                    $priceData['recurring'] = [
+                        'interval'       => $this->packPrice->interval_type->value,
+                        'interval_count' => $this->packPrice->interval_value,
+                    ];
+                }
+
+                $lineItems[] = [
+                    'price_data' => $priceData,
+                    'quantity'   => 1,
+                ];
+            }
 
             $sessionData = [
                 'customer'    => $this->getOrCreateStripeCustomerId(),
                 'success_url' => route('billing.checkout.success') . '?session_id={CHECKOUT_SESSION_ID}',
                 'cancel_url'  => route('billing.checkout.cancel') . '?session_id={CHECKOUT_SESSION_ID}',
-                'line_items'  => [
-                    [
-                        'price'    => $this->productPrice->stripe_id,
-                        'quantity' => 1,
-                    ],
-                ],
-                'mode'     => $isSubscription ? 'subscription' : 'payment',
-                'metadata' => [
+                'line_items'  => $lineItems,
+                'mode'        => $isSubscription ? 'subscription' : 'payment',
+                'metadata'    => [
                     'order_id'    => $this->id,
                     'customer_id' => $this->customer_id,
                 ],
@@ -240,10 +282,8 @@ class Order extends Model implements HasLabel
         }
     }
 
-
     /**
      * Cancel the Stripe Subscription at the end of the current billing period.
-     * The server remains active until expires_at is reached.
      */
     public function cancelSubscription(): void
     {
@@ -272,7 +312,7 @@ class Order extends Model implements HasLabel
     /**
      * Refund the order via Stripe and close it.
      *
-     * @param int|null $amountInCents  Partial refund amount in cents, or null for a full refund.
+     * @param int|null $amountInCents Partial refund amount in cents, or null for a full refund.
      * @return string The Stripe Refund ID.
      */
     public function refund(?int $amountInCents = null): string
@@ -280,7 +320,6 @@ class Order extends Model implements HasLabel
         /** @var StripeClient $stripeClient */
         $stripeClient = app(StripeClient::class);
 
-        // Resolve the payment intent to refund
         $paymentIntentId = $this->resolvePaymentIntentId($stripeClient);
 
         $refundData = ['payment_intent' => $paymentIntentId];
@@ -291,7 +330,6 @@ class Order extends Model implements HasLabel
 
         $refund = $stripeClient->refunds->create($refundData);
 
-        // Immediately cancel subscription and close the order
         if ($this->stripe_subscription_id) {
             try {
                 $stripeClient->subscriptions->cancel($this->stripe_subscription_id);
@@ -348,11 +386,11 @@ class Order extends Model implements HasLabel
     {
         $expireDate = $currentPeriodEnd
             ? Carbon::createFromTimestamp($currentPeriodEnd)
-            : match ($this->productPrice->interval_type) {
-                PriceInterval::Day   => now('UTC')->addDays($this->productPrice->interval_value),
-                PriceInterval::Week  => now('UTC')->addWeeks($this->productPrice->interval_value),
-                PriceInterval::Month => now('UTC')->addMonths($this->productPrice->interval_value),
-                PriceInterval::Year  => now('UTC')->addYears($this->productPrice->interval_value),
+            : match ($this->packPrice->interval_type) {
+                PriceInterval::Day   => now('UTC')->addDays($this->packPrice->interval_value),
+                PriceInterval::Week  => now('UTC')->addWeeks($this->packPrice->interval_value),
+                PriceInterval::Month => now('UTC')->addMonths($this->packPrice->interval_value),
+                PriceInterval::Year  => now('UTC')->addYears($this->packPrice->interval_value),
             };
 
         $this->expireStripeCheckoutSession();
@@ -364,9 +402,9 @@ class Order extends Model implements HasLabel
         ]);
 
         AuditLog::record('order_activated', [
-            'payment_gateway'       => $this->payment_gateway,
+            'payment_gateway'        => $this->payment_gateway,
             'stripe_subscription_id' => $subscriptionId,
-            'expires_at'            => $expireDate->toIso8601String(),
+            'expires_at'             => $expireDate->toIso8601String(),
         ], $this);
 
         if ($this->server) {
@@ -391,16 +429,13 @@ class Order extends Model implements HasLabel
             'expires_at' => Carbon::createFromTimestamp($currentPeriodEnd),
         ];
 
-        // Apply any scheduled plan change at this renewal boundary.
-        if ($this->pending_price_id) {
-            $newPrice = ProductPrice::find($this->pending_price_id);
+        if ($this->pending_pack_price_id) {
+            $newPrice = PackPrice::find($this->pending_pack_price_id);
 
             if ($newPrice) {
-                $updates['product_price_id'] = $newPrice->id;
-                $updates['pending_price_id'] = null;
+                $updates['pack_price_id']         = $newPrice->id;
+                $updates['pending_pack_price_id']  = null;
 
-                // Switch the Stripe subscription to the new price so that
-                // the next billing cycle charges the correct amount.
                 if ($this->stripe_subscription_id) {
                     try {
                         /** @var StripeClient $stripeClient */
@@ -427,7 +462,7 @@ class Order extends Model implements HasLabel
         }
 
         $this->update($updates);
-        $this->load('productPrice');
+        $this->load('packPrice');
 
         if ($wasGracePeriod && $this->server) {
             try {
@@ -445,10 +480,10 @@ class Order extends Model implements HasLabel
     public function activateTrial(int $trialDays): void
     {
         $this->update([
-            'status'           => OrderStatus::Active,
-            'is_trial'         => true,
-            'payment_gateway'  => PaymentGateway::Trial->value,
-            'expires_at'       => now('UTC')->addDays($trialDays),
+            'status'          => OrderStatus::Active,
+            'is_trial'        => true,
+            'payment_gateway' => PaymentGateway::Trial->value,
+            'expires_at'      => now('UTC')->addDays($trialDays),
         ]);
 
         AuditLog::record('order_trial_activated', ['trial_days' => $trialDays], $this);
@@ -517,11 +552,10 @@ class Order extends Model implements HasLabel
         ], $this);
     }
 
-
     private function sendOrderConfirmationEmail(): void
     {
         try {
-            $this->load(['productPrice.product', 'customer.user']);
+            $this->load(['packPrice.pack', 'customer.user']);
             $email = $this->customer->user->email;
 
             Mail::to($email)->queue(new OrderConfirmationMail($this));
@@ -532,22 +566,20 @@ class Order extends Model implements HasLabel
 
     // Plan changes
 
-    public function changePlan(ProductPrice $newPrice): void
+    public function changePlan(PackPrice $newPrice): void
     {
-        $oldPrice = $this->productPrice;
+        $oldPrice = $this->packPrice;
 
-        if ($newPrice->product_id !== $oldPrice->product_id) {
+        if ($newPrice->pack_id !== $oldPrice->pack_id) {
             throw new \InvalidArgumentException(
-                "Price #{$newPrice->id} does not belong to the same product as the current price."
+                "Price #{$newPrice->id} does not belong to the same pack as the current price."
             );
         }
+
         $direction = $newPrice->cost > $oldPrice->cost ? 'upgrade' : 'downgrade';
 
         if ($this->stripe_subscription_id) {
-            // Subscription order: schedule the price change for next renewal.
-            // The server's environment overrides are updated immediately so the
-            // server spec is correct, but billing only switches next cycle.
-            $this->update(['pending_price_id' => $newPrice->id]);
+            $this->update(['pending_pack_price_id' => $newPrice->id]);
 
             if ($this->server) {
                 $this->applyEnvironmentOverrides($this->server, $newPrice);
@@ -560,9 +592,8 @@ class Order extends Model implements HasLabel
                 'new_price_name' => $newPrice->name,
             ], $this);
         } else {
-            // One-time order: no billing implication, apply immediately.
-            $this->update(['product_price_id' => $newPrice->id]);
-            $this->load('productPrice');
+            $this->update(['pack_price_id' => $newPrice->id]);
+            $this->load('packPrice');
 
             if ($this->server) {
                 $this->applyEnvironmentOverrides($this->server, $newPrice);
@@ -577,10 +608,10 @@ class Order extends Model implements HasLabel
         }
     }
 
-    private function applyEnvironmentOverrides(Server $server, ProductPrice $price): void
+    private function applyEnvironmentOverrides(Server $server, PackPrice $price): void
     {
-        $product = $price->product;
-        $eggVariables = EggVariable::where('egg_id', $product->egg_id)->get();
+        $pack = $price->pack;
+        $eggVariables = EggVariable::where('egg_id', $pack->egg_id)->get();
 
         $overrides = [];
         if (!empty($price->environment_overrides)) {
@@ -609,43 +640,62 @@ class Order extends Model implements HasLabel
             return $this->server;
         }
 
-        $product = $this->productPrice->product;
+        $pack = $this->packPrice->pack;
 
         $environment = [];
-        foreach ($product->egg->variables as $variable) {
+        foreach ($pack->egg->variables as $variable) {
             $environment[$variable->env_variable] = $variable->default_value;
         }
 
-        if (!empty($this->productPrice->environment_overrides)) {
-            foreach ($this->productPrice->environment_overrides as $override) {
+        if (!empty($this->packPrice->environment_overrides)) {
+            foreach ($this->packPrice->environment_overrides as $override) {
                 if (isset($override['variable'], $override['value'])) {
                     $environment[$override['variable']] = $override['value'];
                 }
             }
         }
 
+        // Apply active expansion boosts
+        $extraMemory = 0;
+        $extraDisk   = 0;
+        $extraCores  = 0;
+        $extraAlloc  = 0;
+        $extraDb     = 0;
+        $extraBackup = 0;
+
+        $this->load('orderExpansions.packExpansion.expansion');
+        foreach ($this->orderExpansions as $orderExpansion) {
+            $expansion = $orderExpansion->packExpansion->expansion;
+            $extraCores  += $expansion->cores_boost;
+            $extraMemory += $expansion->memory_boost;
+            $extraDisk   += $expansion->disk_boost;
+            $extraAlloc  += $expansion->allocation_limit_boost;
+            $extraDb     += $expansion->database_limit_boost;
+            $extraBackup += $expansion->backup_limit_boost;
+        }
+
         $data = [
-            'name'             => $this->getLabel() . ' (' . $product->getLabel() . ')',
-            'owner_id'         => $this->customer->user->id,
-            'egg_id'           => $product->egg->id,
-            'cpu'              => $product->cores * 100,
-            'memory'           => $product->memory,
-            'disk'             => $product->disk,
-            'swap'             => $product->swap,
-            'io'               => $product->io_weight,
-            'environment'      => $environment,
-            'skip_scripts'     => false,
+            'name'                => $this->getLabel() . ' (' . $pack->getLabel() . ')',
+            'owner_id'            => $this->customer->user->id,
+            'egg_id'              => $pack->egg->id,
+            'cpu'                 => ($pack->cores + $extraCores) * 100,
+            'memory'              => $pack->memory + $extraMemory,
+            'disk'                => $pack->disk + $extraDisk,
+            'swap'                => $pack->swap,
+            'io'                  => $pack->io_weight,
+            'environment'         => $environment,
+            'skip_scripts'        => false,
             'start_on_completion' => true,
-            'oom_killer'       => false,
-            'database_limit'   => $product->database_limit,
-            'allocation_limit' => $product->allocation_limit,
-            'backup_limit'     => $product->backup_limit,
+            'oom_killer'          => false,
+            'database_limit'      => $pack->database_limit + $extraDb,
+            'allocation_limit'    => $pack->allocation_limit + $extraAlloc,
+            'backup_limit'        => $pack->backup_limit + $extraBackup,
         ];
 
-        if (!empty($product->node_ids)) {
+        if (!empty($pack->node_ids)) {
             $ports = [];
-            if (!empty($product->ports)) {
-                foreach ($product->ports as $portRange) {
+            if (!empty($pack->ports)) {
+                foreach ($pack->ports as $portRange) {
                     if (str_contains((string) $portRange, '-')) {
                         [$start, $end] = explode('-', $portRange, 2);
                         $ports = array_merge($ports, range((int) $start, (int) $end));
@@ -655,9 +705,8 @@ class Order extends Model implements HasLabel
                 }
             }
 
-            // Find candidate nodes that have at least one free allocation
             $candidateNodeIds = Allocation::query()
-                ->whereIn('node_id', $product->node_ids)
+                ->whereIn('node_id', $pack->node_ids)
                 ->whereNull('server_id')
                 ->when(!empty($ports), fn ($q) => $q->whereIn('port', $ports))
                 ->distinct()
@@ -666,12 +715,11 @@ class Order extends Model implements HasLabel
             if ($candidateNodeIds->isEmpty()) {
                 throw new \RuntimeException(
                     'No available allocations on the configured nodes'
-                    . (!empty($ports) ? ' matching ports: ' . implode(', ', $product->ports) : '')
+                    . (!empty($ports) ? ' matching ports: ' . implode(', ', $pack->ports) : '')
                     . '.'
                 );
             }
 
-            // Pick the node with the fewest total allocated cores
             $usedCores = Server::whereIn('node_id', $candidateNodeIds)
                 ->selectRaw('node_id, SUM(cpu) / 100.0 as used_cores')
                 ->groupBy('node_id')
@@ -694,20 +742,20 @@ class Order extends Model implements HasLabel
             if (!$allocation) {
                 throw new \RuntimeException(
                     'No available allocations on the selected node'
-                    . (!empty($ports) ? ' matching ports: ' . implode(', ', $product->ports) : '')
+                    . (!empty($ports) ? ' matching ports: ' . implode(', ', $pack->ports) : '')
                     . '.'
                 );
             }
 
-            $data['node_id'] = $allocation->node_id;
+            $data['node_id']       = $allocation->node_id;
             $data['allocation_id'] = $allocation->id;
 
             $server = app(ServerCreationService::class)->handle($data);
         } else {
             $object = new DeploymentObject();
             $object->setDedicated(false);
-            $object->setTags($product->tags);
-            $object->setPorts($product->ports);
+            $object->setTags($pack->tags);
+            $object->setPorts($pack->ports);
 
             $server = app(ServerCreationService::class)->handle($data, $object);
         }

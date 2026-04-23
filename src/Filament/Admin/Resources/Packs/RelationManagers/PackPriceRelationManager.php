@@ -1,14 +1,13 @@
 <?php
 
-namespace Fywolf\Billing\Filament\Admin\Resources\Products\RelationManagers;
+namespace Fywolf\Billing\Filament\Admin\Resources\Packs\RelationManagers;
 
 use Fywolf\Billing\Enums\PriceInterval;
-use Fywolf\Billing\Models\Product;
-use Fywolf\Billing\Models\ProductPrice;
+use Fywolf\Billing\Models\Pack;
+use Fywolf\Billing\Models\PackPrice;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
-use Filament\Forms\Components\KeyValue;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -21,17 +20,17 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
 /**
- * @method Product getOwnerRecord()
+ * @method Pack getOwnerRecord()
  */
-class PriceRelationManager extends RelationManager
+class PackPriceRelationManager extends RelationManager
 {
     protected static string $relationship = 'prices';
 
     public function form(Schema $schema): Schema
     {
-        /** @var Product $product */
-        $product = $this->getOwnerRecord();
-        $egg = $product->egg;
+        /** @var Pack $pack */
+        $pack = $this->getOwnerRecord();
+        $egg  = $pack->egg;
 
         $variableOptions = [];
         if ($egg) {
@@ -88,7 +87,7 @@ class PriceRelationManager extends RelationManager
                             ->defaultItems(0)
                             ->addActionLabel('Add Override')
                             ->columnSpanFull()
-                            ->helperText('Lock specific startup variables for this price tier. For example, set MAX_PLAYERS to 20 for a basic plan.'),
+                            ->helperText('Lock specific startup variables for this price tier.'),
                     ]),
             ]);
     }
@@ -102,7 +101,7 @@ class PriceRelationManager extends RelationManager
                     ->sortable(),
                 TextColumn::make('cost')
                     ->sortable()
-                    ->state(fn (ProductPrice $price) => $price->formatCost()),
+                    ->state(fn (PackPrice $price) => $price->formatCost()),
                 IconColumn::make('renewable')
                     ->label('Can be renewed?')
                     ->boolean(),
@@ -111,10 +110,10 @@ class PriceRelationManager extends RelationManager
                     ->formatStateUsing(fn ($state) => $state > 0 ? "{$state}d" : '—')
                     ->sortable(),
                 TextColumn::make('interval')
-                    ->state(fn (ProductPrice $price) => $price->interval_value . ' ' . $price->interval_type->name),
+                    ->state(fn (PackPrice $price) => $price->interval_value . ' ' . $price->interval_type->name),
                 TextColumn::make('environment_overrides')
                     ->label('Overrides')
-                    ->formatStateUsing(function ($state, ProductPrice $record) {
+                    ->formatStateUsing(function ($state, PackPrice $record) {
                         $overrides = $record->environment_overrides;
                         if (!$overrides || !is_array($overrides)) return '—';
                         return count($overrides) . ' var(s)';

@@ -27,6 +27,35 @@
         </div>
     @endif
 
+    @php
+        $availableExpansions = $this->product->packExpansions
+            ->filter(fn ($pe) => $pe->is_enabled && $pe->expansion->isAvailable());
+    @endphp
+
+    @if($availableExpansions->isNotEmpty())
+        <div style="margin-top: 1rem;">
+            <p style="font-size: 0.8rem; font-weight: 600; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; color: rgb(156 163 175);">Add-ons</p>
+            @foreach($availableExpansions as $pe)
+                @php $checked = in_array($pe->id, $this->selectedExpansionIds, true); @endphp
+                <label
+                    wire:click.prevent="toggleExpansion({{ $pe->id }})"
+                    style="display: flex; align-items: flex-start; gap: 0.6rem; margin-bottom: 0.5rem; cursor: pointer; padding: 0.5rem 0.6rem; border-radius: 0.4rem; border: 1px solid {{ $checked ? 'rgb(99 102 241)' : 'rgba(255,255,255,0.08)' }}; background: {{ $checked ? 'rgba(99,102,241,0.08)' : 'transparent' }}; transition: border-color 0.15s, background 0.15s;"
+                >
+                    <input type="checkbox" {{ $checked ? 'checked' : '' }} style="margin-top: 0.15rem; flex-shrink: 0;" readonly />
+                    <span style="font-size: 0.85rem; line-height: 1.4;">
+                        <span style="font-weight: 600;">{{ $pe->expansion->name }}</span>
+                        <span style="margin-left: 0.4rem; color: rgb(99 102 241);">{{ $pe->formatEffectivePrice() }}</span>
+                        <br>
+                        <span style="font-size: 0.75rem; color: rgb(156 163 175);">{{ $pe->expansion->boostSummary() }}</span>
+                        @if($pe->expansion->stock !== null)
+                            <span style="font-size: 0.7rem; color: rgb(156 163 175); margin-left: 0.3rem;">· {{ $pe->expansion->availableStock() }} left</span>
+                        @endif
+                    </span>
+                </label>
+            @endforeach
+        </div>
+    @endif
+
     <div style="margin-top: 1rem;">
         <div style="display: flex; gap: 0.5rem; align-items: flex-end;">
             <div style="flex: 1;">
@@ -67,14 +96,14 @@
 
     @php
         $stockAvailable = $this->product->availableStock();
-        $isAvailable    = $this->product->is_enabled && ($stockAvailable === null || $stockAvailable > 0);
+        $isAvailable    = $this->product->isAvailable();
     @endphp
 
     @if(!$this->product->is_enabled)
         <p style="margin-top: 1rem; font-size: 0.85rem; color: rgb(156 163 175);">
-            This product is currently unavailable.
+            This pack is currently unavailable.
         </p>
-    @elseif($stockAvailable !== null && $stockAvailable <= 0)
+    @elseif($this->product->force_out_of_stock || ($stockAvailable !== null && $stockAvailable <= 0))
         <p style="margin-top: 1rem; font-size: 0.85rem; color: rgb(239 68 68);">
             Out of stock
         </p>

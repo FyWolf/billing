@@ -19,14 +19,16 @@ use Stripe\StripeClient;
  * @property PriceInterval $interval_type
  * @property int $interval_value
  * @property array|null $environment_overrides
- * @property int $product_id
- * @property Product $product
+ * @property int $pack_id
+ * @property Pack $pack
  */
-class ProductPrice extends Model implements HasLabel
+class PackPrice extends Model implements HasLabel
 {
+    protected $table = 'billing_pack_prices';
+
     protected $fillable = [
         'stripe_id',
-        'product_id',
+        'pack_id',
         'name',
         'cost',
         'renewable',
@@ -39,9 +41,9 @@ class ProductPrice extends Model implements HasLabel
     protected function casts(): array
     {
         return [
-            'renewable'              => 'bool',
-            'interval_type'          => PriceInterval::class,
-            'environment_overrides'  => 'array',
+            'renewable'             => 'bool',
+            'interval_type'         => PriceInterval::class,
+            'environment_overrides' => 'array',
         ];
     }
 
@@ -58,9 +60,9 @@ class ProductPrice extends Model implements HasLabel
         });
     }
 
-    public function product(): BelongsTo
+    public function pack(): BelongsTo
     {
-        return $this->belongsTo(Product::class, 'product_id');
+        return $this->belongsTo(Pack::class, 'pack_id');
     }
 
     public function getLabel(): string
@@ -75,35 +77,19 @@ class ProductPrice extends Model implements HasLabel
             return;
         }
 
-        $this->product->sync();
+        $this->pack->sync();
 
         /** @var StripeClient $stripeClient */
         $stripeClient = app(StripeClient::class);
 
         try {
             if (is_null($this->stripe_id)) {
-                $priceData = [
-                    'currency'    => config('billing.currency'),
-                    'nickname'    => $this->name,
-                    'product'     => $this->product->stripe_id,
-                    'unit_amount' => (int) round($this->cost * 100),
-                ];
-
-                if ($this->renewable) {
-                    $priceData['recurring'] = [
-                        'interval'       => $this->interval_type->value,
-                        'interval_count' => $this->interval_value,
-                    ];
-                }
-
-                $stripePrice = $stripeClient->prices->create($priceData);
-                $this->updateQuietly(['stripe_id' => $stripePrice->id]);
+                $this->createStripePrice($stripeClient);
             } else {
                 $stripePrice = $stripeClient->prices->retrieve($this->stripe_id);
 
-                // Stripe prices are immutable — recreate if amount, product, recurring config, or renewable flag changed
                 $stripeIsRecurring = isset($stripePrice->recurring);
-                $needsRecreate = $stripePrice->product !== $this->product->stripe_id
+                $needsRecreate = $stripePrice->product !== $this->pack->stripe_id
                     || $stripePrice->unit_amount !== (int) round($this->cost * 100)
                     || $stripeIsRecurring !== (bool) $this->renewable
                     || ($this->renewable && (
@@ -113,12 +99,32 @@ class ProductPrice extends Model implements HasLabel
 
                 if ($needsRecreate) {
                     $this->updateQuietly(['stripe_id' => null]);
-                    $this->sync();
+                    $this->createStripePrice($stripeClient);
                 }
             }
         } catch (\Exception $e) {
             report($e);
         }
+    }
+
+    private function createStripePrice(StripeClient $stripeClient): void
+    {
+        $priceData = [
+            'currency'    => config('billing.currency'),
+            'nickname'    => $this->name,
+            'product'     => $this->pack->stripe_id,
+            'unit_amount' => (int) round($this->cost * 100),
+        ];
+
+        if ($this->renewable) {
+            $priceData['recurring'] = [
+                'interval'       => $this->interval_type->value,
+                'interval_count' => $this->interval_value,
+            ];
+        }
+
+        $stripePrice = $stripeClient->prices->create($priceData);
+        $this->updateQuietly(['stripe_id' => $stripePrice->id]);
     }
 
     public function isFree(): bool

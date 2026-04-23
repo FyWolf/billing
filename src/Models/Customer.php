@@ -29,6 +29,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class Customer extends Model implements HasLabel
 {
+    protected $table = 'billing_customers';
+
     protected $fillable = [
         'first_name',
         'last_name',

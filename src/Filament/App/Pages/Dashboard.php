@@ -19,22 +19,28 @@ class Dashboard extends BaseDashboard
             new WidgetConfiguration(MyServersWidget::class),
         ];
 
-        $products = Product::with('prices')
-            ->orderBy('category')
+        $products = Product::with(['packs.prices', 'packs.packExpansions.expansion'])
+            ->where('is_enabled', true)
             ->orderBy('sort_order')
             ->orderBy('name')
-            ->get()
-            ->filter(fn (Product $product) => $product->prices->isNotEmpty());
+            ->get();
 
-        $grouped = $products->groupBy(fn (Product $product) => $product->category ?? '');
+        foreach ($products as $product) {
+            $packs = $product->packs
+                ->filter(fn ($pack) => $pack->prices->isNotEmpty())
+                ->sortBy('sort_order')
+                ->values();
 
-        foreach ($grouped as $category => $categoryProducts) {
+            if ($packs->isEmpty()) {
+                continue;
+            }
+
             $widgets[] = new WidgetConfiguration(CategoryWidget::class, [
-                'categoryName' => $category ?: 'Other Products',
+                'categoryName' => $product->name,
             ]);
 
-            foreach ($categoryProducts as $product) {
-                $widgets[] = new WidgetConfiguration(ProductWidget::class, ['product' => $product]);
+            foreach ($packs as $pack) {
+                $widgets[] = new WidgetConfiguration(ProductWidget::class, ['product' => $pack]);
             }
         }
 

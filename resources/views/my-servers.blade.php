@@ -28,7 +28,7 @@
                                     {{ $order->server->name }}
                                 </div>
                                 <div style="font-size: 0.75rem;" class="text-gray-500 dark:text-gray-400">
-                                    {{ $order->productPrice->product->name }} &middot; {{ $order->productPrice->name }}
+                                    {{ $order->packPrice->pack->name }} &middot; {{ $order->packPrice->name }}
                                 </div>
                             </div>
                             <svg style="width: 1rem; height: 1rem; flex-shrink: 0;" class="text-gray-400 dark:text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">

@@ -8,16 +8,16 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('coupons', function (Blueprint $table) {
+        Schema::create('billing_coupons', function (Blueprint $table) {
             $table->increments('id');
             $table->string('stripe_coupon_id')->nullable();
             $table->string('stripe_promotion_id')->nullable();
             $table->string('name');
             $table->string('code')->unique();
-            $table->integer('amount_off')->nullable();
-            $table->integer('percent_off')->nullable();
-            $table->integer('max_redemptions')->nullable();
-            $table->dateTime('redeem_by')->nullable();
+            $table->decimal('amount_off', 10, 2)->nullable();
+            $table->unsignedTinyInteger('percent_off')->nullable();
+            $table->unsignedInteger('max_redemptions')->nullable();
+            $table->timestamp('redeem_by')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });
@@ -25,6 +25,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('coupons');
+        Schema::dropIfExists('billing_coupons');
     }
 };

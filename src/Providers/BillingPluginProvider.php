@@ -31,7 +31,13 @@ class BillingPluginProvider extends ServiceProvider
         Role::registerCustomModelIcon('customer', 'tabler-user-dollar');
 
         Role::registerCustomDefaultPermissions('product');
-        Role::registerCustomModelIcon('product', 'tabler-package');
+        Role::registerCustomModelIcon('product', 'tabler-category');
+
+        Role::registerCustomDefaultPermissions('pack');
+        Role::registerCustomModelIcon('pack', 'tabler-package');
+
+        Role::registerCustomDefaultPermissions('expansion');
+        Role::registerCustomModelIcon('expansion', 'tabler-puzzle');
     }
 
     public function boot(): void

@@ -12,9 +12,9 @@ class InvoiceService
             return null;
         }
 
-        $order->load(['productPrice.product', 'customer.user', 'coupon']);
+        $order->load(['packPrice.pack', 'customer.user', 'coupon']);
 
-        $tax = $this->computeTax($order->productPrice->cost);
+        $tax = $this->computeTax($order->packPrice->cost);
 
         $data = [
             'order'    => $order,

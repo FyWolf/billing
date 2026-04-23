@@ -19,44 +19,44 @@ class EditProfile extends BaseEditProfile
         $existing = $accountTab->getDefaultChildComponents();
         $accountTab->schema([
             ...(is_array($existing) ? $existing : []),
-            Section::make('Profil de facturation')
-                ->description('Utilisé sur vos factures et reçus.')
+            Section::make('Billing Profile')
+                ->description('Used on your invoices and receipts.')
                 ->columns(2)
                 ->schema([
                     TextInput::make('billing_first_name')
-                        ->label('Prénom')
+                        ->label('First Name')
                         ->maxLength(255),
                     TextInput::make('billing_last_name')
-                        ->label('Nom')
+                        ->label('Last Name')
                         ->maxLength(255),
                     TextInput::make('billing_company_name')
-                        ->label('Société (optionnel)')
+                        ->label('Company Name (optional)')
                         ->maxLength(255)
                         ->columnSpanFull(),
                     TextInput::make('billing_address')
-                        ->label('Adresse')
+                        ->label('Address')
                         ->maxLength(255)
                         ->columnSpanFull(),
                     TextInput::make('billing_address2')
-                        ->label("Complément d'adresse")
+                        ->label('Address Line 2')
                         ->maxLength(255)
                         ->columnSpanFull(),
                     TextInput::make('billing_city')
-                        ->label('Ville')
+                        ->label('City')
                         ->maxLength(100),
                     TextInput::make('billing_zip')
-                        ->label('Code postal')
+                        ->label('ZIP / Postal Code')
                         ->maxLength(20),
                     TextInput::make('billing_country')
-                        ->label('Pays')
+                        ->label('Country')
                         ->maxLength(100)
                         ->columnSpanFull(),
                     TextInput::make('billing_vat_number')
-                        ->label('Numéro de TVA intracommunautaire')
+                        ->label('VAT Number')
                         ->placeholder('FR12345678901')
                         ->maxLength(20),
                     TextInput::make('billing_siret')
-                        ->label('SIRET (sociétés françaises)')
+                        ->label('SIRET')
                         ->placeholder('12345678901234')
                         ->maxLength(14),
                 ]),

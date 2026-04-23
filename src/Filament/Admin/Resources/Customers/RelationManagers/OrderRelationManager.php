@@ -5,7 +5,7 @@ namespace Fywolf\Billing\Filament\Admin\Resources\Customers\RelationManagers;
 use App\Filament\Admin\Resources\Servers\Pages\EditServer;
 use App\Filament\Components\Tables\Columns\DateTimeColumn;
 use Fywolf\Billing\Enums\OrderStatus;
-use Fywolf\Billing\Filament\Admin\Resources\Products\Pages\EditProduct;
+use Fywolf\Billing\Filament\Admin\Resources\Packs\Pages\EditPack;
 use Fywolf\Billing\Models\Customer;
 use Fywolf\Billing\Models\Order;
 use Exception;
@@ -39,15 +39,15 @@ class OrderRelationManager extends RelationManager
                     ->icon('tabler-brand-docker')
                     ->sortable()
                     ->url(fn (Order $order): ?string => $order->server ? EditServer::getUrl(['record' => $order->server]) : null),
-                TextColumn::make('productPrice.product.name')
-                    ->label('Product')
+                TextColumn::make('packPrice.pack.name')
+                    ->label('Pack')
                     ->icon('tabler-package')
                     ->sortable()
-                    ->url(fn (Order $order): string => EditProduct::getUrl(['record' => $order->productPrice->product])),
-                TextColumn::make('productPrice.name')
+                    ->url(fn (Order $order): string => EditPack::getUrl(['record' => $order->packPrice->pack])),
+                TextColumn::make('packPrice.name')
                     ->label('Price')
                     ->sortable(),
-                TextColumn::make('productPrice.cost')
+                TextColumn::make('packPrice.cost')
                     ->label('Cost')
                     ->sortable()
                     ->formatStateUsing(function ($state) {

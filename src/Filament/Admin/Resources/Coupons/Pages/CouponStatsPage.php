@@ -52,7 +52,7 @@ class CouponStatsPage extends Page
         $this->maxRedemptions = (int) ($coupon->max_redemptions ?? 0);
 
         $orders = Order::where('coupon_id', $coupon->id)
-            ->with(['productPrice.product', 'customer'])
+            ->with(['packPrice.product', 'customer'])
             ->get();
 
         // ── KPI ──────────────────────────────────────────────────────────────
@@ -63,7 +63,7 @@ class CouponStatsPage extends Page
         )->count();
 
         $this->revenueSaved = (float) $orders->sum(
-            fn (Order $o) => $coupon->calculateDiscount((float) $o->productPrice->cost)
+            fn (Order $o) => $coupon->calculateDiscount((float) $o->packPrice->cost)
         );
 
         $this->avgDiscount = $this->totalUses > 0
@@ -99,7 +99,7 @@ class CouponStatsPage extends Page
         // ── Product breakdown ─────────────────────────────────────────────────
 
         $productCounts = $orders
-            ->groupBy(fn (Order $o) => $o->productPrice->product->name ?? 'Unknown')
+            ->groupBy(fn (Order $o) => $o->packPrice->pack->name ?? 'Unknown')
             ->map->count()
             ->sortDesc();
 
@@ -145,9 +145,9 @@ class CouponStatsPage extends Page
             ->map(fn (Order $o) => [
                 'id'       => $o->id,
                 'customer' => $o->customer->first_name . ' ' . $o->customer->last_name,
-                'product'  => ($o->productPrice->product->name ?? '—') . ' — ' . $o->productPrice->name,
-                'price'    => $fmt->formatCurrency((float) $o->productPrice->cost, $this->currency),
-                'discount' => $fmt->formatCurrency($coupon->calculateDiscount((float) $o->productPrice->cost), $this->currency),
+                'product'  => ($o->packPrice->pack->name ?? '—') . ' — ' . $o->packPrice->name,
+                'price'    => $fmt->formatCurrency((float) $o->packPrice->cost, $this->currency),
+                'discount' => $fmt->formatCurrency($coupon->calculateDiscount((float) $o->packPrice->cost), $this->currency),
                 'status'   => $o->status->getLabel(),
                 'color'    => $o->status->getColor(),
                 'date'     => $o->created_at->format('M j, Y'),

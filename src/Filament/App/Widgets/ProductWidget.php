@@ -8,24 +8,39 @@ use Fywolf\Billing\Filament\App\Pages\OrderComplete;
 use Fywolf\Billing\Models\Coupon;
 use Fywolf\Billing\Models\Customer;
 use Fywolf\Billing\Models\Order;
-use Fywolf\Billing\Models\Product;
+use Fywolf\Billing\Models\OrderExpansion;
+use Fywolf\Billing\Models\Pack;
+use Fywolf\Billing\Models\PackExpansion;
 use Filament\Notifications\Notification;
 use Filament\Widgets\Widget;
 
 class ProductWidget extends Widget
 {
-    protected string $view = 'billing::widget'; // @phpstan-ignore property.defaultValue
+    protected string $view = 'billing::widget';
 
-    public ?Product $product = null;
+    public ?Pack $product = null;
 
     public string $couponCode = '';
 
-    /** null = not yet validated, array = result of last validation attempt */
     public ?array $couponValidation = null;
+
+    /** @var array<int> */
+    public array $selectedExpansionIds = [];
 
     public function updatedCouponCode(): void
     {
         $this->couponValidation = null;
+    }
+
+    public function toggleExpansion(int $packExpansionId): void
+    {
+        if (in_array($packExpansionId, $this->selectedExpansionIds, true)) {
+            $this->selectedExpansionIds = array_values(
+                array_filter($this->selectedExpansionIds, fn ($id) => $id !== $packExpansionId)
+            );
+        } else {
+            $this->selectedExpansionIds[] = $packExpansionId;
+        }
     }
 
     public function validateCoupon(): void
@@ -74,9 +89,6 @@ class ProductWidget extends Widget
         return number_format($value, $mb % ($binary ? 1024 : 1000) === 0 ? 0 : 1) . ' ' . $unit;
     }
 
-    /**
-     * Called from the blade view when the user clicks an order button.
-     */
     public function placeOrder(int $priceId): void
     {
         $price = $this->product->prices->find($priceId);
@@ -85,24 +97,20 @@ class ProductWidget extends Widget
             return;
         }
 
-        if (!$this->product->is_enabled) {
+        if (!$this->product->isAvailable()) {
+            $reason = !$this->product->is_enabled
+                ? 'This pack is currently unavailable.'
+                : 'This pack is currently out of stock.';
+
             Notification::make()
-                ->title('Product unavailable')
-                ->body('This product is currently unavailable.')
+                ->title('Pack unavailable')
+                ->body($reason)
                 ->danger()
                 ->send();
             return;
         }
 
-        $available = $this->product->availableStock();
-        if ($available !== null && $available <= 0) {
-            Notification::make()
-                ->title('Out of stock')
-                ->body('This product is currently sold out.')
-                ->danger()
-                ->send();
-            return;
-        }
+        $selectedExpansions = $this->resolveSelectedExpansions();
 
         /** @var Customer $customer */
         $customer = Customer::firstOrCreate(
@@ -117,11 +125,12 @@ class ProductWidget extends Widget
         if ($price->isFree()) {
             /** @var Order $order */
             $order = Order::create([
-                'customer_id'      => $customer->id,
-                'product_price_id' => $price->id,
-                'payment_gateway'  => PaymentGateway::Trial->value,
-                'status'           => OrderStatus::Pending->value,
+                'customer_id'     => $customer->id,
+                'pack_price_id'   => $price->id,
+                'payment_gateway' => PaymentGateway::Trial->value,
+                'status'          => OrderStatus::Pending->value,
             ]);
+            $this->attachExpansions($order, $selectedExpansions);
             $order->activate(null);
             $order->refresh();
             $token = $order->generateConfirmationToken();
@@ -132,17 +141,18 @@ class ProductWidget extends Widget
         // Trial
         if ($price->hasTrial()) {
             $hasUsedTrial = Order::where('customer_id', $customer->id)
-                ->where('product_price_id', $price->id)
+                ->where('pack_price_id', $price->id)
                 ->where('is_trial', true)
                 ->exists();
 
             if (!$hasUsedTrial) {
                 /** @var Order $order */
                 $order = Order::create([
-                    'customer_id'      => $customer->id,
-                    'product_price_id' => $price->id,
-                    'status'           => OrderStatus::Pending->value,
+                    'customer_id'   => $customer->id,
+                    'pack_price_id' => $price->id,
+                    'status'        => OrderStatus::Pending->value,
                 ]);
+                $this->attachExpansions($order, $selectedExpansions);
                 $order->activateTrial($price->trial_days);
                 $order->refresh();
                 $token = $order->generateConfirmationToken();
@@ -170,12 +180,14 @@ class ProductWidget extends Widget
 
         /** @var Order $order */
         $order = Order::create([
-            'customer_id'      => $customer->id,
-            'product_price_id' => $price->id,
-            'coupon_id'        => $couponId,
-            'payment_gateway'  => PaymentGateway::Stripe->value,
-            'status'           => OrderStatus::Pending->value,
+            'customer_id'     => $customer->id,
+            'pack_price_id'   => $price->id,
+            'coupon_id'       => $couponId,
+            'payment_gateway' => PaymentGateway::Stripe->value,
+            'status'          => OrderStatus::Pending->value,
         ]);
+
+        $this->attachExpansions($order, $selectedExpansions);
 
         try {
             $this->redirect($order->getCheckoutSession()->url);
@@ -187,6 +199,31 @@ class ProductWidget extends Widget
                 ->body('Could not initiate Stripe checkout. Please try again.')
                 ->danger()
                 ->send();
+        }
+    }
+
+    /** @return \Illuminate\Support\Collection<int, PackExpansion> */
+    private function resolveSelectedExpansions(): \Illuminate\Support\Collection
+    {
+        if (empty($this->selectedExpansionIds)) {
+            return collect();
+        }
+
+        return $this->product->packExpansions
+            ->whereIn('id', $this->selectedExpansionIds)
+            ->filter(fn (PackExpansion $pe) => $pe->is_enabled && $pe->expansion->isAvailable())
+            ->values();
+    }
+
+    /** @param \Illuminate\Support\Collection<int, PackExpansion> $expansions */
+    private function attachExpansions(Order $order, \Illuminate\Support\Collection $expansions): void
+    {
+        foreach ($expansions as $packExpansion) {
+            OrderExpansion::create([
+                'order_id'          => $order->id,
+                'pack_expansion_id' => $packExpansion->id,
+                'price_paid'        => $packExpansion->effectivePrice(),
+            ]);
         }
     }
 }

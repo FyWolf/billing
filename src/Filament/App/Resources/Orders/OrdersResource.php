@@ -8,7 +8,7 @@ use Fywolf\Billing\Enums\OrderStatus;
 use Fywolf\Billing\Filament\App\Resources\Orders\Pages\ListOrders;
 use Fywolf\Billing\Models\Customer;
 use Fywolf\Billing\Models\Order;
-use Fywolf\Billing\Models\ProductPrice;
+use Fywolf\Billing\Models\PackPrice;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\Select;
@@ -37,13 +37,11 @@ class OrdersResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        /** @var Customer $customer */
-        $customer = Customer::firstOrCreate([
-            'user_id' => user()->id,
-        ], [
-            'first_name' => user()->username,
-            'last_name' => user()->username,
-        ]);
+        $customer = Customer::where('user_id', user()->id)->first();
+
+        if (!$customer) {
+            return parent::getEloquentQuery()->whereRaw('1 = 0');
+        }
 
         return parent::getEloquentQuery()->where('customer_id', $customer->id);
     }
@@ -65,14 +63,14 @@ class OrdersResource extends Resource
                     ->placeholder('No server')
                     ->icon('tabler-brand-docker')
                     ->sortable(),
-                TextColumn::make('productPrice.product.name')
-                    ->label('Product')
+                TextColumn::make('packPrice.pack.name')
+                    ->label('Pack')
                     ->icon('tabler-package')
                     ->sortable(),
-                TextColumn::make('productPrice.name')
+                TextColumn::make('packPrice.name')
                     ->label('Price')
                     ->sortable(),
-                TextColumn::make('productPrice.cost')
+                TextColumn::make('packPrice.cost')
                     ->label('Cost')
                     ->sortable()
                     ->formatStateUsing(function ($state) {
@@ -106,15 +104,13 @@ class OrdersResource extends Resource
                         Select::make('new_price_id')
                             ->label('New Plan')
                             ->options(function () use ($order) {
-                                $currentPrice = $order->productPrice;
+                                $currentPrice = $order->packPrice;
 
-                                // Only show prices of the same billing type (renewable ↔ renewable,
-                                // one-time ↔ one-time). Switching between types requires a new checkout.
-                                return ProductPrice::where('product_id', $currentPrice->product_id)
+                                return PackPrice::where('pack_id', $currentPrice->pack_id)
                                     ->where('id', '!=', $currentPrice->id)
                                     ->where('renewable', $currentPrice->renewable)
                                     ->get()
-                                    ->mapWithKeys(fn (ProductPrice $price) => [
+                                    ->mapWithKeys(fn (PackPrice $price) => [
                                         $price->id => $price->name . ' — ' . $price->formatCost()
                                             . ($price->cost > $currentPrice->cost ? ' (upgrade)' : ' (downgrade)'),
                                     ]);
@@ -128,7 +124,7 @@ class OrdersResource extends Resource
                         ? 'Your server\'s startup variables will be updated immediately. The new billing rate takes effect at your next renewal — you won\'t be charged twice for the current period.'
                         : 'Your server\'s startup variables will be updated immediately.')
                     ->action(function (Order $order, array $data) {
-                        $newPrice = ProductPrice::findOrFail($data['new_price_id']);
+                        $newPrice = PackPrice::findOrFail($data['new_price_id']);
 
                         $order->changePlan($newPrice);
 
