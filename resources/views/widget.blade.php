@@ -94,10 +94,21 @@
 
         <div style="margin-top: 1rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem;">
             @foreach($this->product->prices as $price)
-                <div style="border-radius: 0.5rem; border: 1px solid rgba(255,255,255,0.1); padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem;">
-                    <p style="font-size: 0.9rem; font-weight: 700; margin: 0;" class="text-gray-950 dark:text-white">
-                        {{ $price->name ?: 'Standard' }}
-                    </p>
+                <div style="border-radius: 0.5rem; border: 1px solid {{ $price->renewable ? 'rgba(99,102,241,0.35)' : 'rgba(245,158,11,0.35)' }}; padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap;">
+                        <p style="font-size: 0.9rem; font-weight: 700; margin: 0;" class="text-gray-950 dark:text-white">
+                            {{ $price->name ?: 'Standard' }}
+                        </p>
+                        @if($price->renewable)
+                            <span style="display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; background: rgba(99,102,241,0.15); border: 1px solid rgba(99,102,241,0.35); color: rgb(129,140,248); border-radius: 999px; padding: 0.15rem 0.5rem; white-space: nowrap;">
+                                ↻ Subscription
+                            </span>
+                        @else
+                            <span style="display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.35); color: rgb(251,191,36); border-radius: 999px; padding: 0.15rem 0.5rem; white-space: nowrap;">
+                                ✓ One-time
+                            </span>
+                        @endif
+                    </div>
 
                     @php
                         $binary = (bool) config('panel.use_binary_prefix');
@@ -125,6 +136,10 @@
                             @if($price->renewable)
                                 <span style="font-size: 0.7rem; font-weight: 400; color: rgb(156 163 175);">
                                     / {{ $price->interval_value > 1 ? $price->interval_value . ' ' : '' }}{{ $price->interval_type->getLabel() }}
+                                </span>
+                            @else
+                                <span style="font-size: 0.7rem; font-weight: 400; color: rgb(156 163 175);">
+                                    one-time
                                 </span>
                             @endif
                         </p>
