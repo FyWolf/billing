@@ -3,7 +3,7 @@
 namespace Fywolf\Billing\Filament\Admin\Resources\Products\Pages;
 
 use Fywolf\Billing\Filament\Admin\Resources\Products\ProductResource;
-use Fywolf\Billing\Filament\Admin\Resources\Products\RelationManagers\PriceRelationManager;
+use Fywolf\Billing\Filament\Admin\Resources\Products\RelationManagers\PackRelationManager;
 use Fywolf\Billing\Models\Product;
 use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
@@ -31,7 +31,7 @@ class EditProduct extends EditRecord
     public function getRelationManagers(): array
     {
         return [
-            PriceRelationManager::class,
+            PackRelationManager::class,
         ];
     }
 }
