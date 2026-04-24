@@ -20,10 +20,10 @@ class ListOrders extends ListRecords
             CreateAction::make()
                 ->label('Create Order')
                 ->createAnother(false)
-                ->mutateFormDataBeforeCreate(fn (array $data) => array_merge(
-                    ['payment_gateway' => 'manual', 'status' => OrderStatus::Pending->value],
-                    $data
-                )),
+                ->using(fn (array $data) => Order::create(array_merge([
+                    'payment_gateway' => 'manual',
+                    'status'          => OrderStatus::Pending->value,
+                ], $data))),
         ];
     }
 
