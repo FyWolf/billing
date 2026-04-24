@@ -137,7 +137,8 @@ class OrdersResource extends Resource
                             ->send();
                     }),
                 Action::make('activate')
-                    ->visible(fn (Order $order) => $order->status === OrderStatus::Pending)
+                    ->visible(fn (Order $order) => $order->status === OrderStatus::Pending
+                        && $order->payment_gateway !== 'manual')
                     ->color('success')
                     ->requiresConfirmation()
                     ->action(fn (Order $order) => redirect($order->getPaymentUrl())),
