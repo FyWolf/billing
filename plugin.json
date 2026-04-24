@@ -2,7 +2,7 @@
   "id": "billing",
   "name": "Billing",
   "author": "Fywolf",
-  "version": "2.1.6",
+  "version": "2.1.7",
   "description": "Billing plugin for game hosting. Supports Stripe subscriptions, grace periods, audit logging, and automated server provisioning.",
   "category": "plugin",
   "url": "https://github.com/FyWolf/billing",
