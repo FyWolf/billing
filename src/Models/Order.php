@@ -657,6 +657,10 @@ class Order extends Model implements HasLabel
 
         $pack = $this->packPrice->pack;
 
+        if (!$pack->egg_id) {
+            throw new Exception("Pack '{$pack->name}' has no egg configured. Use a vCenter pack setting for VPS provisioning.");
+        }
+
         $environment = [];
         foreach ($pack->egg->variables as $variable) {
             $environment[$variable->env_variable] = $variable->default_value;

@@ -74,6 +74,10 @@ class PackResource extends Resource
                 Toggle::make('is_enabled')
                     ->label('Enabled')
                     ->default(true),
+                Toggle::make('visible_in_store')
+                    ->label('Visible in Store')
+                    ->default(true)
+                    ->helperText('Uncheck to hide from customers. Admins can still create orders for this pack manually.'),
                 TextInput::make('stock')
                     ->label('Stock Limit')
                     ->numeric()
@@ -88,15 +92,17 @@ class PackResource extends Resource
                 Select::make('egg_id')
                     ->prefixIcon('tabler-egg')
                     ->label('Egg')
-                    ->required()
+                    ->nullable()
                     ->relationship('egg', 'name')
                     ->searchable()
                     ->preload()
+                    ->live()
                     ->columnSpanFull()
-                    ->helperText('The game/software type. Resource specs are set per price tier below.'),
+                    ->helperText('Required for game server packs. Leave empty for VPS or other non-game products.'),
                 Fieldset::make('Deployment')
                     ->columnSpanFull()
                     ->columns(2)
+                    ->visible(fn (\Filament\Schemas\Components\Utilities\Get $get) => !empty($get('egg_id')))
                     ->schema([
                         Select::make('node_ids')
                             ->label('Nodes')
@@ -131,6 +137,9 @@ class PackResource extends Resource
                 ToggleColumn::make('is_enabled')
                     ->label('Enabled')
                     ->sortable(),
+                ToggleColumn::make('visible_in_store')
+                    ->label('In Store')
+                    ->sortable(),
                 IconColumn::make('force_out_of_stock')
                     ->label('Forced OOS')
                     ->boolean()
@@ -148,7 +157,8 @@ class PackResource extends Resource
                 TextColumn::make('egg.name')
                     ->sortable()
                     ->icon('tabler-egg')
-                    ->url(fn (Pack $pack): string => route('filament.admin.resources.eggs.edit', ['record' => $pack->egg])),
+                    ->placeholder('—')
+                    ->url(fn (Pack $pack): ?string => $pack->egg ? route('filament.admin.resources.eggs.edit', ['record' => $pack->egg]) : null),
                 TextColumn::make('prices_count')
                     ->label('Tiers')
                     ->counts('prices')

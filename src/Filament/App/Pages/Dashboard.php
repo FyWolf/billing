@@ -27,7 +27,7 @@ class Dashboard extends BaseDashboard
 
         foreach ($products as $product) {
             $packs = $product->packs
-                ->filter(fn ($pack) => $pack->prices->isNotEmpty())
+                ->filter(fn ($pack) => $pack->prices->isNotEmpty() && $pack->visible_in_store)
                 ->sortBy('sort_order')
                 ->values();
 

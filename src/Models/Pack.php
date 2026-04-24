@@ -21,14 +21,15 @@ use Stripe\StripeClient;
  * @property ?string $image
  * @property int $sort_order
  * @property bool $is_enabled
+ * @property bool $visible_in_store
  * @property ?int $stock
  * @property bool $force_out_of_stock
  * @property array<int|string> $ports
  * @property string[] $tags
  * @property int[]|null $node_ids
- * @property int $egg_id
+ * @property ?int $egg_id
  * @property int $product_id
- * @property Egg $egg
+ * @property ?Egg $egg
  * @property Product $product
  * @property Collection|PackPrice[] $prices
  * @property Collection|PackExpansion[] $packExpansions
@@ -46,6 +47,7 @@ class Pack extends Model implements HasLabel
         'image',
         'sort_order',
         'is_enabled',
+        'visible_in_store',
         'stock',
         'force_out_of_stock',
         'ports',
@@ -59,6 +61,7 @@ class Pack extends Model implements HasLabel
         'ports'              => '[]',
         'tags'               => '[]',
         'is_enabled'         => true,
+        'visible_in_store'   => true,
         'force_out_of_stock' => false,
     ];
 
@@ -69,6 +72,7 @@ class Pack extends Model implements HasLabel
             'tags'               => 'array',
             'node_ids'           => 'array',
             'is_enabled'         => 'boolean',
+            'visible_in_store'   => 'boolean',
             'force_out_of_stock' => 'boolean',
         ];
     }
