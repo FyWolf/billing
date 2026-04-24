@@ -10,6 +10,9 @@ use App\Models\Server;
 use App\Models\ServerVariable;
 use App\Services\Servers\ServerCreationService;
 use App\Services\Servers\SuspensionService;
+use Fywolf\Billing\Events\OrderProvisioning;
+use Fywolf\Billing\Events\OrderSuspending;
+use Fywolf\Billing\Events\OrderUnsuspending;
 use Fywolf\Billing\Enums\OrderStatus;
 use Fywolf\Billing\Enums\PaymentGateway;
 use Fywolf\Billing\Enums\PriceInterval;
@@ -408,10 +411,13 @@ class Order extends Model implements HasLabel
         ], $this);
 
         if ($this->server) {
-            try {
-                app(SuspensionService::class)->handle($this->server, SuspendAction::Unsuspend);
-            } catch (Exception $exception) {
-                report($exception);
+            $results = event(new OrderUnsuspending($this));
+            if (!in_array(false, (array) $results, true)) {
+                try {
+                    app(SuspensionService::class)->handle($this->server, SuspendAction::Unsuspend);
+                } catch (Exception $exception) {
+                    report($exception);
+                }
             }
         } else {
             CreateServerJob::dispatch($this->id);
@@ -465,10 +471,13 @@ class Order extends Model implements HasLabel
         $this->load('packPrice');
 
         if ($wasGracePeriod && $this->server) {
-            try {
-                app(SuspensionService::class)->handle($this->server, SuspendAction::Unsuspend);
-            } catch (Exception $exception) {
-                report($exception);
+            $results = event(new OrderUnsuspending($this));
+            if (!in_array(false, (array) $results, true)) {
+                try {
+                    app(SuspensionService::class)->handle($this->server, SuspendAction::Unsuspend);
+                } catch (Exception $exception) {
+                    report($exception);
+                }
             }
         }
 
@@ -495,12 +504,15 @@ class Order extends Model implements HasLabel
 
     public function close(): void
     {
-        try {
-            if ($this->server) {
-                app(SuspensionService::class)->handle($this->server, SuspendAction::Suspend);
+        $results = event(new OrderSuspending($this));
+        if (!in_array(false, (array) $results, true)) {
+            try {
+                if ($this->server) {
+                    app(SuspensionService::class)->handle($this->server, SuspendAction::Suspend);
+                }
+            } catch (Exception $exception) {
+                report($exception);
             }
-        } catch (Exception $exception) {
-            report($exception);
         }
 
         $this->expireStripeCheckoutSession();
@@ -525,12 +537,15 @@ class Order extends Model implements HasLabel
 
     public function expire(): void
     {
-        try {
-            if ($this->server) {
-                app(SuspensionService::class)->handle($this->server, SuspendAction::Suspend);
+        $results = event(new OrderSuspending($this));
+        if (!in_array(false, (array) $results, true)) {
+            try {
+                if ($this->server) {
+                    app(SuspensionService::class)->handle($this->server, SuspendAction::Suspend);
+                }
+            } catch (Exception $exception) {
+                report($exception);
             }
-        } catch (Exception $exception) {
-            report($exception);
         }
 
         if ($this->stripe_subscription_id) {

@@ -2,6 +2,7 @@
 
 namespace Fywolf\Billing\Jobs;
 
+use Fywolf\Billing\Events\OrderProvisioning;
 use Fywolf\Billing\Models\AuditLog;
 use Fywolf\Billing\Models\Order;
 use Filament\Notifications\Notification;
@@ -42,6 +43,11 @@ class CreateServerJob implements ShouldQueue
 
         if ($order->server) {
             // Already provisioned (e.g. admin created it manually)
+            return;
+        }
+
+        $results = event(new OrderProvisioning($order));
+        if (in_array(false, (array) $results, true)) {
             return;
         }
 
