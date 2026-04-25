@@ -4,8 +4,12 @@ namespace Fywolf\Billing\Filament\Admin\Resources\Orders\Pages;
 
 use Fywolf\Billing\Enums\OrderStatus;
 use Fywolf\Billing\Filament\Admin\Resources\Orders\OrderResource;
+use Fywolf\Billing\Models\Customer;
 use Fywolf\Billing\Models\Order;
+use Fywolf\Billing\Models\PackPrice;
 use Filament\Actions\CreateAction;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Toggle;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Schemas\Components\Tabs\Tab;
 use Illuminate\Database\Eloquent\Builder;
@@ -20,10 +24,36 @@ class ListOrders extends ListRecords
             CreateAction::make()
                 ->label('Create Order')
                 ->createAnother(false)
-                ->using(fn (array $data) => Order::create(array_merge([
-                    'payment_gateway' => 'manual',
+                ->form([
+                    Select::make('customer_id')
+                        ->label('Customer')
+                        ->required()
+                        ->selectablePlaceholder(false)
+                        ->options(fn () => Customer::with('user')
+                            ->get()
+                            ->mapWithKeys(fn (Customer $c) => [$c->id => $c->getLabel()])
+                        )
+                        ->searchable(),
+                    Select::make('pack_price_id')
+                        ->label('Pack')
+                        ->required()
+                        ->selectablePlaceholder(false)
+                        ->options(fn () => PackPrice::with('pack')
+                            ->get()
+                            ->mapWithKeys(fn (PackPrice $p) => [$p->id => $p->pack->getLabel() . ' — ' . $p->getLabel()])
+                        )
+                        ->searchable(),
+                    Toggle::make('manual_activation')
+                        ->label('Admin activates (skip payment)')
+                        ->helperText('Off = customer pays via Stripe. On = you activate the order manually, no payment required.')
+                        ->default(false),
+                ])
+                ->using(fn (array $data) => Order::create([
+                    'customer_id'     => $data['customer_id'],
+                    'pack_price_id'   => $data['pack_price_id'],
+                    'payment_gateway' => !empty($data['manual_activation']) ? 'manual' : null,
                     'status'          => OrderStatus::Pending->value,
-                ], $data))),
+                ])),
         ];
     }
 

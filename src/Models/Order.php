@@ -415,6 +415,8 @@ class Order extends Model implements HasLabel
 
         if ($provisioner->isProvisioned($this)) {
             $provisioner->unsuspend($this);
+        } elseif ($this->payment_gateway === PaymentGateway::Manual->value) {
+            $provisioner->provision($this);
         } else {
             CreateServerJob::dispatch($this->id);
         }

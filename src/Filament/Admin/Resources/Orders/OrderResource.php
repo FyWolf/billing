@@ -173,17 +173,26 @@ class OrderResource extends Resource
                     ->color('success')
                     ->requiresConfirmation()
                     ->action(function (Order $order) {
-                        $order->activate(null);
+                        try {
+                            $order->activate(null);
 
-                        AuditLog::record('admin_order_activated', [
-                            'admin_id' => auth()->id(),
-                        ], $order);
+                            AuditLog::record('admin_order_activated', [
+                                'admin_id' => auth()->id(),
+                            ], $order);
 
-                        Notification::make()
-                            ->title('Order activated')
-                            ->body($order->getLabel())
-                            ->success()
-                            ->send();
+                            Notification::make()
+                                ->title('Order activated')
+                                ->body($order->getLabel())
+                                ->success()
+                                ->send();
+                        } catch (Exception $exception) {
+                            Notification::make()
+                                ->title('Activation failed')
+                                ->body($exception->getMessage())
+                                ->danger()
+                                ->persistent()
+                                ->send();
+                        }
                     }),
                 Action::make('create_server')
                     ->label('Provision')
