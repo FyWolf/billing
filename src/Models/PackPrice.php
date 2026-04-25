@@ -173,6 +173,51 @@ class PackPrice extends Model implements HasLabel
         return $formatter->formatCurrency($amount, config('billing.currency'));
     }
 
+    /**
+     * Ensure this price has a Stripe ID, creating the product and price in Stripe if missing.
+     * Unlike sync(), this throws on failure so callers get a real error.
+     */
+    public function ensureStripePrice(): void
+    {
+        if ($this->stripe_id) {
+            return;
+        }
+
+        if (!$this->isStripeEnabled()) {
+            throw new \RuntimeException('Stripe is not configured. Set STRIPE_SECRET in plugin settings.');
+        }
+
+        /** @var StripeClient $stripeClient */
+        $stripeClient = app(StripeClient::class);
+
+        if (!$this->pack->stripe_id) {
+            $product = $stripeClient->products->create([
+                'name'        => $this->pack->name,
+                'description' => $this->pack->description,
+            ]);
+            $this->pack->updateQuietly(['stripe_id' => $product->id]);
+            $this->pack->stripe_id = $product->id;
+        }
+
+        $priceData = [
+            'currency'    => config('billing.currency'),
+            'nickname'    => $this->name,
+            'product'     => $this->pack->stripe_id,
+            'unit_amount' => (int) round($this->cost * 100),
+        ];
+
+        if ($this->renewable) {
+            $priceData['recurring'] = [
+                'interval'       => $this->interval_type->value,
+                'interval_count' => $this->interval_value,
+            ];
+        }
+
+        $stripePrice = $stripeClient->prices->create($priceData);
+        $this->updateQuietly(['stripe_id' => $stripePrice->id]);
+        $this->stripe_id = $stripePrice->id;
+    }
+
     private static function isStripeEnabled(): bool
     {
         return !empty(config('billing.stripe.secret'));
