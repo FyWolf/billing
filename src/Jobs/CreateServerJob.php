@@ -51,6 +51,10 @@ class CreateServerJob implements ShouldQueue
             return;
         }
 
+        if (!$order->packPrice->pack->egg_id) {
+            return;
+        }
+
         $order->createServer();
     }
 
