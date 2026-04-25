@@ -191,6 +191,15 @@ class Order extends Model implements HasLabel
         $stripeClient = app(StripeClient::class);
 
         if (is_null($this->stripe_checkout_id)) {
+            $this->packPrice->sync();
+            $this->packPrice->refresh();
+
+            if (empty($this->packPrice->stripe_id)) {
+                throw new \RuntimeException(
+                    "Pack price \"{$this->packPrice->name}\" has no Stripe ID. Ensure Stripe is configured and the price was saved after Stripe credentials were set."
+                );
+            }
+
             $isSubscription = $this->packPrice->renewable;
 
             $lineItems = [
