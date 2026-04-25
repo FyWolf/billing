@@ -48,6 +48,7 @@ class Pack extends Model implements HasLabel
         'sort_order',
         'is_enabled',
         'visible_in_store',
+        'provisioner',
         'stock',
         'force_out_of_stock',
         'ports',
@@ -62,6 +63,7 @@ class Pack extends Model implements HasLabel
         'tags'               => '[]',
         'is_enabled'         => true,
         'visible_in_store'   => true,
+        'provisioner'        => 'wings',
         'force_out_of_stock' => false,
     ];
 

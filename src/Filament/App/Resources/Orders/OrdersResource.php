@@ -3,14 +3,13 @@
 namespace Fywolf\Billing\Filament\App\Resources\Orders;
 
 use App\Filament\Components\Tables\Columns\DateTimeColumn;
-use App\Filament\Server\Pages\Console;
 use Fywolf\Billing\Enums\OrderStatus;
 use Fywolf\Billing\Filament\App\Resources\Orders\Pages\ListOrders;
 use Fywolf\Billing\Models\Customer;
 use Fywolf\Billing\Models\Order;
 use Fywolf\Billing\Models\PackPrice;
+use Fywolf\Billing\ProvisionerRegistry;
 use Filament\Actions\Action;
-use Filament\Actions\ViewAction;
 use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
@@ -92,9 +91,17 @@ class OrdersResource extends Resource
                     ->visible(fn () => class_exists(\Barryvdh\DomPDF\ServiceProvider::class))
                     ->url(fn (Order $order) => route('billing.invoices.user', $order))
                     ->openUrlInNewTab(),
-                ViewAction::make()
-                    ->hidden(fn (Order $order) => !$order->server)
-                    ->url(fn (Order $order) => Console::getUrl(panel: 'server', tenant: $order->server)),
+                Action::make('manage')
+                    ->label('Manage')
+                    ->icon('tabler-settings')
+                    ->color('gray')
+                    ->hidden(fn (Order $order) => app(ProvisionerRegistry::class)
+                        ->get($order->packPrice->pack->provisioner ?? 'wings')
+                        ->getManagementUrl($order) === null)
+                    ->url(fn (Order $order) => app(ProvisionerRegistry::class)
+                        ->get($order->packPrice->pack->provisioner ?? 'wings')
+                        ->getManagementUrl($order))
+                    ->openUrlInNewTab(),
                 Action::make('change_plan')
                     ->label('Change Plan')
                     ->icon('tabler-arrows-exchange')

@@ -10,6 +10,8 @@ use Fywolf\Billing\Console\Commands\CheckOrdersCommand;
 use Fywolf\Billing\Filament\Admin\Resources\Users\RelationManagers\UserOrderRelationManager;
 use Fywolf\Billing\Models\Customer;
 use Fywolf\Billing\Models\Order;
+use Fywolf\Billing\ProvisionerRegistry;
+use Fywolf\Billing\Provisioners\WingsProvisioner;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
@@ -23,6 +25,8 @@ class BillingPluginProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->singleton(ProvisionerRegistry::class);
+
         if (!empty(config('billing.stripe.secret'))) {
             $this->app->bind(StripeClient::class, fn () => new StripeClient(config('billing.stripe.secret')));
         }
@@ -42,6 +46,8 @@ class BillingPluginProvider extends ServiceProvider
 
     public function boot(): void
     {
+        app(ProvisionerRegistry::class)->register(WingsProvisioner::getSlug(), WingsProvisioner::class);
+
         $this->warnMissingConfig();
         $this->registerUserRelationships();
         $this->extendUserResource();

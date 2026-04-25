@@ -2,9 +2,9 @@
 
 namespace Fywolf\Billing\Jobs;
 
-use Fywolf\Billing\Events\OrderProvisioning;
 use Fywolf\Billing\Models\AuditLog;
 use Fywolf\Billing\Models\Order;
+use Fywolf\Billing\ProvisionerRegistry;
 use Filament\Notifications\Notification;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -37,25 +37,13 @@ class CreateServerJob implements ShouldQueue
         $order = Order::find($this->orderId);
 
         if (!$order) {
-            // Order was deleted between dispatch and execution — nothing to do
             return;
         }
 
-        if ($order->server) {
-            // Already provisioned (e.g. admin created it manually)
-            return;
-        }
+        $slug        = $order->packPrice->pack->provisioner ?? 'wings';
+        $provisioner = app(ProvisionerRegistry::class)->get($slug);
 
-        $results = event(new OrderProvisioning($order));
-        if (in_array(false, (array) $results, true)) {
-            return;
-        }
-
-        if (!$order->packPrice->pack->egg_id) {
-            return;
-        }
-
-        $order->createServer();
+        $provisioner->provision($order);
     }
 
     public function failed(Throwable $exception): void
@@ -68,7 +56,6 @@ class CreateServerJob implements ShouldQueue
             'attempts' => $this->attempts(),
         ], $order);
 
-        // Notify all admin panel users about the failure
         $this->notifyAdmins($exception->getMessage());
     }
 

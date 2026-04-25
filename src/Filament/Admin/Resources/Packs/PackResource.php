@@ -10,6 +10,7 @@ use Fywolf\Billing\Filament\Admin\Resources\Packs\RelationManagers\PackExpansion
 use Fywolf\Billing\Filament\Admin\Resources\Packs\RelationManagers\PackPriceRelationManager;
 use Fywolf\Billing\Models\Pack;
 use Fywolf\Billing\Models\Product;
+use Fywolf\Billing\ProvisionerRegistry;
 use Illuminate\Database\Eloquent\Builder;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
@@ -21,6 +22,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Fieldset;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -77,7 +79,7 @@ class PackResource extends Resource
                 Toggle::make('visible_in_store')
                     ->label('Visible in Store')
                     ->default(true)
-                    ->helperText('Uncheck to hide from customers. Admins can still create orders for this pack manually.'),
+                    ->helperText('Uncheck to hide from customers. Admins can still create orders manually.'),
                 TextInput::make('stock')
                     ->label('Stock Limit')
                     ->numeric()
@@ -89,21 +91,27 @@ class PackResource extends Resource
                     ->label('Force Out of Stock')
                     ->default(false)
                     ->helperText('Mark as out of stock without changing the actual stock number.'),
-                Select::make('egg_id')
-                    ->prefixIcon('tabler-egg')
-                    ->label('Egg')
-                    ->nullable()
-                    ->relationship('egg', 'name')
-                    ->searchable()
-                    ->preload()
+                Select::make('provisioner')
+                    ->label('Provisioner')
+                    ->options(fn () => app(ProvisionerRegistry::class)->options())
+                    ->default('wings')
+                    ->required()
                     ->live()
                     ->columnSpanFull()
-                    ->helperText('Required for game server packs. Leave empty for VPS or other non-game products.'),
-                Fieldset::make('Deployment')
+                    ->helperText('Determines how the service is created when an order is activated.'),
+                Fieldset::make('Game Server (Wings)')
                     ->columnSpanFull()
                     ->columns(2)
-                    ->visible(fn (\Filament\Schemas\Components\Utilities\Get $get) => !empty($get('egg_id')))
+                    ->visible(fn (Get $get) => $get('provisioner') === 'wings')
                     ->schema([
+                        Select::make('egg_id')
+                            ->prefixIcon('tabler-egg')
+                            ->label('Egg')
+                            ->relationship('egg', 'name')
+                            ->searchable()
+                            ->preload()
+                            ->columnSpanFull()
+                            ->helperText('The game server egg to use when provisioning via Wings.'),
                         Select::make('node_ids')
                             ->label('Nodes')
                             ->multiple()
@@ -134,6 +142,11 @@ class PackResource extends Resource
                     ->label('Category')
                     ->sortable()
                     ->searchable(),
+                TextColumn::make('provisioner')
+                    ->label('Provisioner')
+                    ->badge()
+                    ->color('info')
+                    ->formatStateUsing(fn (string $state) => app(ProvisionerRegistry::class)->options()[$state] ?? $state),
                 ToggleColumn::make('is_enabled')
                     ->label('Enabled')
                     ->sortable(),
@@ -154,11 +167,6 @@ class PackResource extends Resource
                         $available = $pack->availableStock();
                         return $available . ' / ' . $pack->stock;
                     }),
-                TextColumn::make('egg.name')
-                    ->sortable()
-                    ->icon('tabler-egg')
-                    ->placeholder('—')
-                    ->url(fn (Pack $pack): ?string => $pack->egg ? route('filament.admin.resources.eggs.edit', ['record' => $pack->egg]) : null),
                 TextColumn::make('prices_count')
                     ->label('Tiers')
                     ->counts('prices')

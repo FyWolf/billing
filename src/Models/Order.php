@@ -2,22 +2,16 @@
 
 namespace Fywolf\Billing\Models;
 
-use App\Enums\SuspendAction;
-use App\Models\Allocation;
 use App\Models\EggVariable;
-use App\Models\Objects\DeploymentObject;
 use App\Models\Server;
 use App\Models\ServerVariable;
-use App\Services\Servers\ServerCreationService;
-use App\Services\Servers\SuspensionService;
-use Fywolf\Billing\Events\OrderProvisioning;
-use Fywolf\Billing\Events\OrderSuspending;
-use Fywolf\Billing\Events\OrderUnsuspending;
+use Fywolf\Billing\Contracts\PackProvisionerContract;
 use Fywolf\Billing\Enums\OrderStatus;
 use Fywolf\Billing\Enums\PaymentGateway;
 use Fywolf\Billing\Enums\PriceInterval;
 use Fywolf\Billing\Jobs\CreateServerJob;
 use Fywolf\Billing\Mail\OrderConfirmationMail;
+use Fywolf\Billing\ProvisionerRegistry;
 use Exception;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
@@ -127,6 +121,13 @@ class Order extends Model implements HasLabel
     public function getLabel(): string
     {
         return "Order #{$this->id}";
+    }
+
+    public function getProvisioner(): PackProvisionerContract
+    {
+        $slug = $this->packPrice->pack->provisioner ?? 'wings';
+
+        return app(ProvisionerRegistry::class)->get($slug);
     }
 
     /**
@@ -410,15 +411,10 @@ class Order extends Model implements HasLabel
             'expires_at'             => $expireDate->toIso8601String(),
         ], $this);
 
-        if ($this->server) {
-            $results = event(new OrderUnsuspending($this));
-            if (!in_array(false, (array) $results, true)) {
-                try {
-                    app(SuspensionService::class)->handle($this->server, SuspendAction::Unsuspend);
-                } catch (Exception $exception) {
-                    report($exception);
-                }
-            }
+        $provisioner = $this->getProvisioner();
+
+        if ($provisioner->isProvisioned($this)) {
+            $provisioner->unsuspend($this);
         } else {
             CreateServerJob::dispatch($this->id);
         }
@@ -439,8 +435,8 @@ class Order extends Model implements HasLabel
             $newPrice = PackPrice::find($this->pending_pack_price_id);
 
             if ($newPrice) {
-                $updates['pack_price_id']         = $newPrice->id;
-                $updates['pending_pack_price_id']  = null;
+                $updates['pack_price_id']        = $newPrice->id;
+                $updates['pending_pack_price_id'] = null;
 
                 if ($this->stripe_subscription_id) {
                     try {
@@ -470,14 +466,11 @@ class Order extends Model implements HasLabel
         $this->update($updates);
         $this->load('packPrice');
 
-        if ($wasGracePeriod && $this->server) {
-            $results = event(new OrderUnsuspending($this));
-            if (!in_array(false, (array) $results, true)) {
-                try {
-                    app(SuspensionService::class)->handle($this->server, SuspendAction::Unsuspend);
-                } catch (Exception $exception) {
-                    report($exception);
-                }
+        if ($wasGracePeriod) {
+            $provisioner = $this->getProvisioner();
+
+            if ($provisioner->isProvisioned($this)) {
+                $provisioner->unsuspend($this);
             }
         }
 
@@ -504,16 +497,7 @@ class Order extends Model implements HasLabel
 
     public function close(): void
     {
-        $results = event(new OrderSuspending($this));
-        if (!in_array(false, (array) $results, true)) {
-            try {
-                if ($this->server) {
-                    app(SuspensionService::class)->handle($this->server, SuspendAction::Suspend);
-                }
-            } catch (Exception $exception) {
-                report($exception);
-            }
-        }
+        $this->getProvisioner()->suspend($this);
 
         $this->expireStripeCheckoutSession();
 
@@ -537,16 +521,7 @@ class Order extends Model implements HasLabel
 
     public function expire(): void
     {
-        $results = event(new OrderSuspending($this));
-        if (!in_array(false, (array) $results, true)) {
-            try {
-                if ($this->server) {
-                    app(SuspensionService::class)->handle($this->server, SuspendAction::Suspend);
-                }
-            } catch (Exception $exception) {
-                report($exception);
-            }
-        }
+        $this->getProvisioner()->suspend($this);
 
         if ($this->stripe_subscription_id) {
             try {
@@ -625,7 +600,7 @@ class Order extends Model implements HasLabel
 
     private function applyEnvironmentOverrides(Server $server, PackPrice $price): void
     {
-        $pack = $price->pack;
+        $pack         = $price->pack;
         $eggVariables = EggVariable::where('egg_id', $pack->egg_id)->get();
 
         $overrides = [];
@@ -645,149 +620,5 @@ class Order extends Model implements HasLabel
                 ['variable_value' => $value]
             );
         }
-    }
-
-    // Server provisioning
-
-    public function createServer(): Server
-    {
-        if ($this->server) {
-            return $this->server;
-        }
-
-        $pack = $this->packPrice->pack;
-
-        if (!$pack->egg_id) {
-            throw new Exception("Pack '{$pack->name}' has no egg configured. Use a vCenter pack setting for VPS provisioning.");
-        }
-
-        $environment = [];
-        foreach ($pack->egg->variables as $variable) {
-            $environment[$variable->env_variable] = $variable->default_value;
-        }
-
-        if (!empty($this->packPrice->environment_overrides)) {
-            foreach ($this->packPrice->environment_overrides as $override) {
-                if (isset($override['variable'], $override['value'])) {
-                    $environment[$override['variable']] = $override['value'];
-                }
-            }
-        }
-
-        // Apply active expansion boosts
-        $extraMemory = 0;
-        $extraDisk   = 0;
-        $extraCores  = 0;
-        $extraAlloc  = 0;
-        $extraDb     = 0;
-        $extraBackup = 0;
-
-        $this->load('orderExpansions.packExpansion.expansion');
-        foreach ($this->orderExpansions as $orderExpansion) {
-            $expansion = $orderExpansion->packExpansion->expansion;
-            $extraCores  += $expansion->cores_boost;
-            $extraMemory += $expansion->memory_boost;
-            $extraDisk   += $expansion->disk_boost;
-            $extraAlloc  += $expansion->allocation_limit_boost;
-            $extraDb     += $expansion->database_limit_boost;
-            $extraBackup += $expansion->backup_limit_boost;
-        }
-
-        $price = $this->packPrice;
-
-        $data = [
-            'name'                => $this->getLabel() . ' (' . $pack->getLabel() . ')',
-            'owner_id'            => $this->customer->user->id,
-            'egg_id'              => $pack->egg->id,
-            'cpu'                 => ($price->cores + $extraCores) * 100,
-            'memory'              => $price->memory + $extraMemory,
-            'disk'                => $price->disk + $extraDisk,
-            'swap'                => $price->swap,
-            'io'                  => $price->io_weight,
-            'environment'         => $environment,
-            'skip_scripts'        => false,
-            'start_on_completion' => true,
-            'oom_killer'          => false,
-            'database_limit'      => $price->database_limit + $extraDb,
-            'allocation_limit'    => $price->allocation_limit + $extraAlloc,
-            'backup_limit'        => $price->backup_limit + $extraBackup,
-        ];
-
-        if (!empty($pack->node_ids)) {
-            $ports = [];
-            if (!empty($pack->ports)) {
-                foreach ($pack->ports as $portRange) {
-                    if (str_contains((string) $portRange, '-')) {
-                        [$start, $end] = explode('-', $portRange, 2);
-                        $ports = array_merge($ports, range((int) $start, (int) $end));
-                    } else {
-                        $ports[] = (int) $portRange;
-                    }
-                }
-            }
-
-            $candidateNodeIds = Allocation::query()
-                ->whereIn('node_id', $pack->node_ids)
-                ->whereNull('server_id')
-                ->when(!empty($ports), fn ($q) => $q->whereIn('port', $ports))
-                ->distinct()
-                ->pluck('node_id');
-
-            if ($candidateNodeIds->isEmpty()) {
-                throw new \RuntimeException(
-                    'No available allocations on the configured nodes'
-                    . (!empty($ports) ? ' matching ports: ' . implode(', ', $pack->ports) : '')
-                    . '.'
-                );
-            }
-
-            $usedCores = Server::whereIn('node_id', $candidateNodeIds)
-                ->selectRaw('node_id, SUM(cpu) / 100.0 as used_cores')
-                ->groupBy('node_id')
-                ->pluck('used_cores', 'node_id');
-
-            $bestNodeId = $candidateNodeIds
-                ->sortBy(fn ($nodeId) => $usedCores->get($nodeId, 0))
-                ->first();
-
-            $allocationQuery = Allocation::query()
-                ->where('node_id', $bestNodeId)
-                ->whereNull('server_id');
-
-            if (!empty($ports)) {
-                $allocationQuery->whereIn('port', $ports);
-            }
-
-            $allocation = $allocationQuery->inRandomOrder()->first();
-
-            if (!$allocation) {
-                throw new \RuntimeException(
-                    'No available allocations on the selected node'
-                    . (!empty($ports) ? ' matching ports: ' . implode(', ', $pack->ports) : '')
-                    . '.'
-                );
-            }
-
-            $data['node_id']       = $allocation->node_id;
-            $data['allocation_id'] = $allocation->id;
-
-            $server = app(ServerCreationService::class)->handle($data);
-        } else {
-            $object = new DeploymentObject();
-            $object->setDedicated(false);
-            $object->setTags($pack->tags);
-            $object->setPorts($pack->ports);
-
-            $server = app(ServerCreationService::class)->handle($data, $object);
-        }
-
-        $this->update(['server_id' => $server->id]);
-
-        AuditLog::record('server_created', [
-            'server_id'   => $server->id,
-            'server_name' => $server->name,
-        ], $this);
-
-        return $server;
     }
 }

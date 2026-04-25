@@ -16,6 +16,8 @@ return new class extends Migration
             $table->string('image')->nullable();
             $table->unsignedSmallInteger('sort_order')->default(0);
             $table->boolean('is_enabled')->default(true);
+            $table->boolean('visible_in_store')->default(true);
+            $table->string('provisioner')->default('wings');
             $table->unsignedInteger('stock')->nullable();
             $table->boolean('force_out_of_stock')->default(false);
 
@@ -23,8 +25,8 @@ return new class extends Migration
             $table->json('tags')->default('[]');
             $table->json('node_ids')->nullable();
 
-            $table->unsignedInteger('egg_id');
-            $table->foreign('egg_id')->references('id')->on('eggs')->cascadeOnDelete();
+            $table->unsignedInteger('egg_id')->nullable();
+            $table->foreign('egg_id')->references('id')->on('eggs')->nullOnDelete();
 
             $table->unsignedInteger('product_id');
             $table->foreign('product_id')->references('id')->on('billing_products')->cascadeOnDelete();

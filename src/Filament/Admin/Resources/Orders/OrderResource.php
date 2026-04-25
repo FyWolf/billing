@@ -13,6 +13,7 @@ use Fywolf\Billing\Models\AuditLog;
 use Fywolf\Billing\Models\Customer;
 use Fywolf\Billing\Models\Order;
 use Fywolf\Billing\Models\PackPrice;
+use Fywolf\Billing\ProvisionerRegistry;
 use Exception;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
@@ -185,21 +186,27 @@ class OrderResource extends Resource
                             ->send();
                     }),
                 Action::make('create_server')
-                    ->visible(fn (Order $order) => $order->status === OrderStatus::Active && !$order->server)
+                    ->label('Provision')
+                    ->visible(fn (Order $order) => $order->status === OrderStatus::Active
+                        && !app(ProvisionerRegistry::class)
+                            ->get($order->packPrice->pack->provisioner ?? 'wings')
+                            ->isProvisioned($order))
                     ->color('primary')
                     ->requiresConfirmation()
                     ->action(function (Order $order) {
                         try {
-                            $order->createServer();
+                            app(ProvisionerRegistry::class)
+                                ->get($order->packPrice->pack->provisioner ?? 'wings')
+                                ->provision($order);
 
                             Notification::make()
-                                ->title('Server created')
+                                ->title('Provisioned successfully')
                                 ->body($order->getLabel())
                                 ->success()
                                 ->send();
                         } catch (Exception $exception) {
                             Notification::make()
-                                ->title('Could not create server')
+                                ->title('Provisioning failed')
                                 ->body($exception->getMessage())
                                 ->danger()
                                 ->persistent()
