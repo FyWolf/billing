@@ -19,7 +19,9 @@ class CatalogController extends Controller
 
         $categories = $products->map(function (Product $product) {
             $packs = $product->packs
-                ->filter(fn (Pack $pack) => $pack->prices->isNotEmpty())
+                ->filter(fn (Pack $pack) => $pack->prices->isNotEmpty()
+                    && $pack->visible_in_store
+                    && $pack->is_enabled)
                 ->sortBy('sort_order')
                 ->values()
                 ->map(fn (Pack $pack) => $this->formatPack($pack));
