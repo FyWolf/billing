@@ -24,7 +24,7 @@ class ListOrders extends ListRecords
             CreateAction::make()
                 ->label('Create Order')
                 ->createAnother(false)
-                ->form([
+                ->schema([
                     Select::make('customer_id')
                         ->label('Customer')
                         ->required()

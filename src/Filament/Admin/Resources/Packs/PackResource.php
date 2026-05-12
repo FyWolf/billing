@@ -67,7 +67,6 @@ class PackResource extends Resource
                     ->disk('public')
                     ->directory('billing/packs')
                     ->visibility('public')
-                    ->imagePreviewHeight('160')
                     ->columnSpanFull(),
                 TextInput::make('sort_order')
                     ->numeric()

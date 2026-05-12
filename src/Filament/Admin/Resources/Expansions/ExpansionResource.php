@@ -48,7 +48,6 @@ class ExpansionResource extends Resource
                     ->disk('public')
                     ->directory('billing/expansions')
                     ->visibility('public')
-                    ->imagePreviewHeight('120')
                     ->columnSpanFull(),
                 TextInput::make('cost')
                     ->required()

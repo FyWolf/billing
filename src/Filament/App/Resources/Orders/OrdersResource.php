@@ -107,7 +107,7 @@ class OrdersResource extends Resource
                     ->icon('tabler-arrows-exchange')
                     ->visible(fn (Order $order) => $order->status === OrderStatus::Active && $order->server)
                     ->color('info')
-                    ->form(fn (Order $order) => [
+                    ->schema(fn (Order $order) => [
                         Select::make('new_price_id')
                             ->label('New Plan')
                             ->options(function () use ($order) {

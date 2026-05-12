@@ -127,7 +127,7 @@ class OrderResource extends Resource
                     ->icon('tabler-arrows-exchange')
                     ->visible(fn (Order $order) => $order->status === OrderStatus::Active)
                     ->color('info')
-                    ->form(fn (Order $order) => [
+                    ->schema(fn (Order $order) => [
                         Select::make('new_price_id')
                             ->label('New Plan')
                             ->options(function () use ($order) {
@@ -253,7 +253,7 @@ class OrderResource extends Resource
                     ->visible(fn (Order $order) => in_array($order->status, [OrderStatus::Active, OrderStatus::Cancelled, OrderStatus::GracePeriod])
                         && ($order->stripe_payment_id || $order->stripe_subscription_id || $order->stripe_checkout_id))
                     ->color('warning')
-                    ->form(fn (Order $order) => [
+                    ->schema(fn (Order $order) => [
                         TextInput::make('amount')
                             ->label('Refund Amount (' . strtoupper(config('billing.currency', 'USD')) . ')')
                             ->numeric()
