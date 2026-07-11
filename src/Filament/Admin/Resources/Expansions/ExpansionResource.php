@@ -13,7 +13,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Resources\Resource;
-use Filament\Schemas\Components\Fieldset;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -68,10 +68,10 @@ class ExpansionResource extends Resource
                     ->nullable()
                     ->minValue(1)
                     ->placeholder('Unlimited'),
-                Fieldset::make('Resource Boosts')
+                Section::make('Resource Boosts')
                     ->columnSpanFull()
                     ->columns(3)
-                    ->helperText('These values are added on top of the pack\'s base resources when the expansion is active.')
+                    ->description('These values are added on top of the pack\'s base resources when the expansion is active.')
                     ->schema([
                         TextInput::make('cores_boost')
                             ->prefixIcon('tabler-cpu')

@@ -7,6 +7,7 @@ use App\Enums\CustomizationKey;
 use App\Filament\App\Resources\Servers\ServerResource;
 use App\Filament\Pages\Auth\EditProfile;
 use App\Traits\EnvironmentWriterTrait;
+use Filament\Actions\Action;
 use Filament\Contracts\Plugin;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
@@ -15,8 +16,14 @@ use Filament\Forms\Components\TextInput;
 use Filament\Navigation\NavigationItem;
 use Filament\Notifications\Notification;
 use Filament\Panel;
+use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Fieldset;
 use Fywolf\Billing\Http\Middleware\CancellationWarningMiddleware;
+use Fywolf\Billing\Models\Coupon;
+use Fywolf\Billing\Models\Customer;
+use Fywolf\Billing\Models\Expansion;
+use Fywolf\Billing\Models\Pack;
+use Fywolf\Billing\Models\PackPrice;
 
 class BillingPlugin implements HasPluginSettings, Plugin
 {
@@ -172,6 +179,39 @@ class BillingPlugin implements HasPluginSettings, Plugin
                     Placeholder::make('stripe_webhook_events')
                         ->label('Required Webhook Events')
                         ->content('checkout.session.completed, invoice.paid, invoice.payment_failed, customer.subscription.deleted'),
+
+                    Actions::make([
+                        Action::make('reset_stripe_ids')
+                            ->label('Reset cached Stripe IDs')
+                            ->icon('tabler-refresh')
+                            ->color('danger')
+                            ->requiresConfirmation()
+                            ->modalHeading('Reset cached Stripe IDs')
+                            ->modalDescription('Clears every stored Stripe customer, product, price and coupon ID. Use this after switching between test and live keys. Objects are recreated automatically on the next checkout or when re-saved. Existing test-mode subscriptions will no longer renew.')
+                            ->modalSubmitActionLabel('Reset IDs')
+                            ->action(function (): void {
+                                $cleared = [
+                                    'customers'  => Customer::whereNotNull('stripe_customer_id')->update(['stripe_customer_id' => null]),
+                                    'packs'      => Pack::whereNotNull('stripe_id')->update(['stripe_id' => null]),
+                                    'prices'     => PackPrice::whereNotNull('stripe_id')->update(['stripe_id' => null]),
+                                    'expansions' => Expansion::whereNotNull('stripe_id')->update(['stripe_id' => null]),
+                                    'coupons'    => Coupon::whereNotNull('stripe_coupon_id')->update(['stripe_coupon_id' => null]),
+                                ];
+
+                                Notification::make()
+                                    ->title('Cached Stripe IDs cleared')
+                                    ->body(sprintf(
+                                        '%d customers, %d packs, %d prices, %d expansions, %d coupons reset.',
+                                        $cleared['customers'],
+                                        $cleared['packs'],
+                                        $cleared['prices'],
+                                        $cleared['expansions'],
+                                        $cleared['coupons'],
+                                    ))
+                                    ->success()
+                                    ->send();
+                            }),
+                    ]),
                 ]),
         ];
     }
